@@ -149,22 +149,30 @@ class IntegrationsAPI {
       if (!cloudName) missing.push('VITE_CLOUDINARY_CLOUD_NAME');
       if (!uploadPreset) missing.push('VITE_CLOUDINARY_UPLOAD_PRESET');
       
-      console.warn('⚠️ Cloudinary não configurado. Variáveis faltando:', missing);
-      console.warn('⚠️ Adicione essas variáveis no Vercel e faça redeploy!');
-    }
-    
-    // Fallback: usar blob URL apenas em desenvolvimento
-    if (file && import.meta.env.DEV) {
+      console.error('❌ Cloudinary não configurado. Variáveis faltando:', missing);
+      console.error('❌ Adicione essas variáveis no Vercel e faça redeploy!');
+      console.error('❌ Usando placeholder como fallback.');
+      
+      // Em produção, nunca usar blob URLs
       return {
-        file_url: URL.createObjectURL(file),
-        file_id: `file_${Date.now()}`
+        file_url: 'https://via.placeholder.com/400',
+        file_id: `file_${Date.now()}`,
+        error: 'Cloudinary não configurado'
       };
     }
     
-    // Fallback: placeholder
+    // Se chegou aqui, o Cloudinary falhou mas as variáveis existem
+    // Isso significa que o preset provavelmente não está configurado corretamente
+    console.error('❌ Upload do Cloudinary falhou. Verifique:');
+    console.error('   1. Preset "farmacia-upload" existe no Cloudinary?');
+    console.error('   2. Preset está como "Unsigned" (não "Signed")?');
+    console.error('   3. Nome do preset está correto?');
+    
+    // Em produção, nunca usar blob URLs
     return {
       file_url: 'https://via.placeholder.com/400',
-      file_id: `file_${Date.now()}`
+      file_id: `file_${Date.now()}`,
+      error: 'Upload do Cloudinary falhou'
     };
   }
 
@@ -200,21 +208,25 @@ class IntegrationsAPI {
       if (!cloudName) missing.push('VITE_CLOUDINARY_CLOUD_NAME');
       if (!uploadPreset) missing.push('VITE_CLOUDINARY_UPLOAD_PRESET');
       
-      console.warn('⚠️ Cloudinary não configurado para upload privado. Variáveis faltando:', missing);
-    }
-    
-    // Fallback: usar blob URL apenas em desenvolvimento
-    if (file && import.meta.env.DEV) {
+      console.error('❌ Cloudinary não configurado para upload privado. Variáveis faltando:', missing);
+      console.error('❌ Usando placeholder como fallback.');
+      
+      // Em produção, nunca usar blob URLs
       return {
-        file_url: URL.createObjectURL(file),
-        file_id: `file_${Date.now()}`
+        file_url: 'https://via.placeholder.com/400',
+        file_id: `file_${Date.now()}`,
+        error: 'Cloudinary não configurado'
       };
     }
     
-    // Fallback: placeholder
+    // Se chegou aqui, o Cloudinary falhou mas as variáveis existem
+    console.error('❌ Upload privado do Cloudinary falhou. Verifique o preset no Cloudinary.');
+    
+    // Em produção, nunca usar blob URLs
     return {
       file_url: 'https://via.placeholder.com/400',
-      file_id: `file_${Date.now()}`
+      file_id: `file_${Date.now()}`,
+      error: 'Upload do Cloudinary falhou'
     };
   }
 
