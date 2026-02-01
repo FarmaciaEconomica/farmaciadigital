@@ -259,7 +259,19 @@ export default function AdminProducts() {
   }, [dbCategories]);
 
   const createMutation = useMutation({
-    mutationFn: (data) => base44.entities.Product.create(data),
+    mutationFn: async (data) => {
+      console.log('🚀 AdminProducts: Iniciando criação de produto');
+      console.log('📦 Dados recebidos:', { name: data.name, price: data.price, category: data.category });
+      try {
+        const result = await base44.entities.Product.create(data);
+        console.log('✅ AdminProducts: Produto criado com sucesso:', result.id);
+        return result;
+      } catch (error) {
+        console.error('❌ AdminProducts: Erro ao criar produto:', error);
+        console.error('❌ Stack:', error.stack);
+        throw error;
+      }
+    },
     onSuccess: async (data) => {
       await queryClient.invalidateQueries(['adminProducts']);
       await queryClient.invalidateQueries(['products']); // Invalidar também a query pública
@@ -268,7 +280,8 @@ export default function AdminProducts() {
       closeModal();
     },
     onError: (error) => {
-      console.error('Erro ao criar produto:', error);
+      console.error('❌ AdminProducts: Erro na mutation:', error);
+      console.error('❌ Detalhes:', error.message);
       toast.error('Erro ao criar produto: ' + (error.message || 'Tente novamente'));
     }
   });

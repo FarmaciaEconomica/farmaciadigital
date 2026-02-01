@@ -105,11 +105,18 @@ class EntityAPI {
   }
 
   async create(data) {
-    console.log('🔍 ===== CRIAR PRODUTO =====');
+    // FORÇAR LOG IMEDIATO - não pode ser suprimido
+    console.log('%c🔍 ===== CRIAR PRODUTO =====', 'color: #00ff00; font-weight: bold; font-size: 14px;');
     console.log('Entity:', this.entityName);
     console.log('API_URL:', API_URL);
     console.log('VITE_API_URL:', import.meta.env.VITE_API_URL || '❌ UNDEFINED');
     console.log('VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL || '❌ UNDEFINED');
+    
+    // Verificar se data é válido
+    if (!data) {
+      console.error('❌ create: data é inválido');
+      throw new Error('Dados do produto são obrigatórios');
+    }
     
     // Tentar usar backend se disponível
     if (this.entityName === 'Product') {
@@ -193,9 +200,16 @@ class EntityAPI {
   }
 
   async bulkCreate(items) {
-    console.log('🔍 ===== BULK CREATE PRODUTOS =====');
+    // FORÇAR LOG IMEDIATO - não pode ser suprimido
+    console.log('%c🔍 ===== BULK CREATE PRODUTOS =====', 'color: #00ff00; font-weight: bold; font-size: 14px;');
     console.log('Entity:', this.entityName);
     console.log('Quantidade:', items.length);
+    
+    // Verificar se items é válido
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      console.error('❌ bulkCreate: items inválido ou vazio');
+      return [];
+    }
     
     // Verificar variáveis de ambiente diretamente
     const viteApiUrl = import.meta.env.VITE_API_URL;
