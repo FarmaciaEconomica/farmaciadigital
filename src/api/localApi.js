@@ -4,6 +4,16 @@ import { db } from './localStorage';
 // Simular delay de rede
 const delay = (ms = 100) => new Promise(resolve => setTimeout(resolve, ms));
 
+// Debug Cloudinary - remover em produção se necessário
+if (typeof window !== 'undefined') {
+  console.log('🔍 Cloudinary Config Check:', {
+    cloudName: import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || '❌ Não configurado',
+    apiKey: import.meta.env.VITE_CLOUDINARY_API_KEY ? '✅ Configurado' : '❌ Não configurado',
+    uploadPreset: import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || '❌ Não configurado',
+    willUseCloudinary: !!import.meta.env.VITE_CLOUDINARY_CLOUD_NAME
+  });
+}
+
 // Entidades
 class EntityAPI {
   constructor(entityName) {
@@ -101,17 +111,82 @@ class AuthAPI {
 class IntegrationsAPI {
   async UploadFile({ file }) {
     await delay(1000);
-    // Simular upload - retorna uma URL local
+    
+    // Tentar usar Cloudinary se estiver configurado
+    if (file && import.meta.env.VITE_CLOUDINARY_CLOUD_NAME) {
+      console.log('☁️ Tentando upload no Cloudinary...');
+      try {
+        const { uploadToCloudinary } = await import('@/config/cloudinary');
+        const result = await uploadToCloudinary(file, {
+          folder: 'uploads',
+          uploadPreset: import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || 'default_preset'
+        });
+        console.log('✅ Upload Cloudinary bem-sucedido:', result.url);
+        return {
+          file_url: result.url,
+          file_id: result.publicId
+        };
+      } catch (error) {
+        console.error('❌ Erro ao fazer upload no Cloudinary:', error);
+        console.warn('Usando fallback...');
+      }
+    } else {
+      console.warn('⚠️ Cloudinary não configurado. Variáveis necessárias:', {
+        cloudName: import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || 'FALTA',
+        apiKey: import.meta.env.VITE_CLOUDINARY_API_KEY || 'FALTA',
+        uploadPreset: import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || 'FALTA'
+      });
+    }
+    
+    // Fallback: usar blob URL apenas em desenvolvimento
+    if (file && import.meta.env.DEV) {
+      return {
+        file_url: URL.createObjectURL(file),
+        file_id: `file_${Date.now()}`
+      };
+    }
+    
+    // Fallback: placeholder
     return {
-      file_url: file ? URL.createObjectURL(file) : 'https://via.placeholder.com/400',
+      file_url: 'https://via.placeholder.com/400',
       file_id: `file_${Date.now()}`
     };
   }
 
   async UploadPrivateFile({ file }) {
     await delay(1000);
+    
+    // Tentar usar Cloudinary se estiver configurado
+    if (file && import.meta.env.VITE_CLOUDINARY_CLOUD_NAME) {
+      console.log('☁️ Tentando upload privado no Cloudinary...');
+      try {
+        const { uploadToCloudinary } = await import('@/config/cloudinary');
+        const result = await uploadToCloudinary(file, {
+          folder: 'private',
+          uploadPreset: import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || 'default_preset'
+        });
+        console.log('✅ Upload Cloudinary privado bem-sucedido:', result.url);
+        return {
+          file_url: result.url,
+          file_id: result.publicId
+        };
+      } catch (error) {
+        console.error('❌ Erro ao fazer upload privado no Cloudinary:', error);
+        console.warn('Usando fallback...');
+      }
+    }
+    
+    // Fallback: usar blob URL apenas em desenvolvimento
+    if (file && import.meta.env.DEV) {
+      return {
+        file_url: URL.createObjectURL(file),
+        file_id: `file_${Date.now()}`
+      };
+    }
+    
+    // Fallback: placeholder
     return {
-      file_url: file ? URL.createObjectURL(file) : 'https://via.placeholder.com/400',
+      file_url: 'https://via.placeholder.com/400',
       file_id: `file_${Date.now()}`
     };
   }

@@ -1,0 +1,24 @@
+═══════════════════════════════════════════════════════════════
+  COMANDOS PARA ATUALIZAR NO GIT
+═══════════════════════════════════════════════════════════════
+
+Execute estes comandos na pasta raiz do projeto:
+
+1. Verificar status:
+   git status
+
+2. Adicionar todos os arquivos:
+   git add .
+
+3. Fazer commit:
+   git commit -m "Update: Configuração backend/frontend e Cloudinary"
+
+4. Fazer push:
+   git push
+
+═══════════════════════════════════════════════════════════════
+
+OU use o script automático:
+   .\atualizar-git.ps1
+
+═══════════════════════════════════════════════════════════════
