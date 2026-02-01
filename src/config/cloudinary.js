@@ -61,33 +61,76 @@ export const getCloudinaryUrl = (imagePath, options = {}) => {
  * @returns {Promise<object>} Resultado do upload
  */
 export const uploadToCloudinary = async (file, options = {}) => {
-  if (!cloudinaryConfig.cloudName || !cloudinaryConfig.apiKey) {
-    throw new Error('Cloudinary não configurado. Configure as variáveis de ambiente.');
+  // Verificação detalhada das variáveis
+  console.log('🔍 Verificando configuração Cloudinary:', {
+    cloudName: cloudinaryConfig.cloudName || '❌ FALTA',
+    apiKey: cloudinaryConfig.apiKey ? '✅ Configurado' : '❌ FALTA',
+    uploadPreset: options.uploadPreset || '❌ FALTA',
+    fileName: file?.name,
+    fileSize: file?.size
+  });
+
+  if (!cloudinaryConfig.cloudName) {
+    const error = 'Cloudinary não configurado. VITE_CLOUDINARY_CLOUD_NAME está faltando.';
+    console.error('❌', error);
+    throw new Error(error);
+  }
+
+  if (!options.uploadPreset) {
+    const error = 'Upload Preset não fornecido. Configure VITE_CLOUDINARY_UPLOAD_PRESET ou passe uploadPreset nas opções.';
+    console.error('❌', error);
+    throw new Error(error);
   }
 
   const formData = new FormData();
   formData.append('file', file);
-  formData.append('upload_preset', options.uploadPreset || 'default_preset');
-  formData.append('cloud_name', cloudinaryConfig.cloudName);
+  formData.append('upload_preset', options.uploadPreset);
+  
+  // Não precisa enviar cloud_name no FormData para uploads unsigned
+  // O cloud_name já está na URL da API
 
   if (options.folder) {
     formData.append('folder', options.folder);
   }
 
+  const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudinaryConfig.cloudName}/image/upload`;
+  
+  console.log('☁️ Iniciando upload para Cloudinary:', {
+    url: uploadUrl,
+    uploadPreset: options.uploadPreset,
+    folder: options.folder || 'nenhum'
+  });
+
   try {
-    const response = await fetch(
-      `https://api.cloudinary.com/v1_1/${cloudinaryConfig.cloudName}/image/upload`,
-      {
-        method: 'POST',
-        body: formData,
-      }
-    );
+    const response = await fetch(uploadUrl, {
+      method: 'POST',
+      body: formData,
+    });
+
+    const responseText = await response.text();
+    console.log('📡 Resposta do Cloudinary (status):', response.status);
+    console.log('📡 Resposta do Cloudinary (texto):', responseText.substring(0, 200));
 
     if (!response.ok) {
-      throw new Error('Erro ao fazer upload para o Cloudinary');
+      let errorMessage = `Erro ao fazer upload para o Cloudinary (${response.status})`;
+      try {
+        const errorData = JSON.parse(responseText);
+        errorMessage = errorData.error?.message || errorMessage;
+        console.error('❌ Erro detalhado:', errorData);
+      } catch (e) {
+        console.error('❌ Resposta de erro:', responseText);
+      }
+      throw new Error(errorMessage);
     }
 
-    const data = await response.json();
+    const data = JSON.parse(responseText);
+    console.log('✅ Upload bem-sucedido!', {
+      url: data.secure_url,
+      publicId: data.public_id,
+      width: data.width,
+      height: data.height
+    });
+
     return {
       url: data.secure_url,
       publicId: data.public_id,
@@ -95,7 +138,8 @@ export const uploadToCloudinary = async (file, options = {}) => {
       height: data.height,
     };
   } catch (error) {
-    console.error('Erro no upload do Cloudinary:', error);
+    console.error('❌ Erro no upload do Cloudinary:', error);
+    console.error('Stack:', error.stack);
     throw error;
   }
 };

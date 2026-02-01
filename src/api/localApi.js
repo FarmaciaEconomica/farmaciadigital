@@ -6,12 +6,20 @@ const delay = (ms = 100) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Debug Cloudinary - remover em produção se necessário
 if (typeof window !== 'undefined') {
-  console.log('🔍 Cloudinary Config Check:', {
-    cloudName: import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || '❌ Não configurado',
-    apiKey: import.meta.env.VITE_CLOUDINARY_API_KEY ? '✅ Configurado' : '❌ Não configurado',
-    uploadPreset: import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || '❌ Não configurado',
-    willUseCloudinary: !!import.meta.env.VITE_CLOUDINARY_CLOUD_NAME
-  });
+  const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+  const apiKey = import.meta.env.VITE_CLOUDINARY_API_KEY;
+  const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+  
+  console.log('🔍 ===== Cloudinary Config Check =====');
+  console.log('Cloud Name:', cloudName || '❌ FALTA - Adicione VITE_CLOUDINARY_CLOUD_NAME no Vercel');
+  console.log('API Key:', apiKey ? '✅ Configurado' : '❌ FALTA - Adicione VITE_CLOUDINARY_API_KEY no Vercel');
+  console.log('Upload Preset:', uploadPreset || '❌ FALTA - Adicione VITE_CLOUDINARY_UPLOAD_PRESET no Vercel');
+  console.log('Vai usar Cloudinary?', !!cloudName && !!uploadPreset ? '✅ SIM' : '❌ NÃO');
+  console.log('=====================================');
+  
+  // Listar todas as variáveis VITE_ disponíveis
+  const viteEnvVars = Object.keys(import.meta.env).filter(k => k.startsWith('VITE_'));
+  console.log('📋 Variáveis VITE_ disponíveis:', viteEnvVars);
 }
 
 // Entidades
@@ -113,13 +121,17 @@ class IntegrationsAPI {
     await delay(1000);
     
     // Tentar usar Cloudinary se estiver configurado
-    if (file && import.meta.env.VITE_CLOUDINARY_CLOUD_NAME) {
+    const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+    const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+    
+    if (file && cloudName && uploadPreset) {
       console.log('☁️ Tentando upload no Cloudinary...');
+      console.log('📋 Configuração:', { cloudName, uploadPreset, fileName: file.name });
       try {
         const { uploadToCloudinary } = await import('@/config/cloudinary');
         const result = await uploadToCloudinary(file, {
           folder: 'uploads',
-          uploadPreset: import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || 'default_preset'
+          uploadPreset: uploadPreset
         });
         console.log('✅ Upload Cloudinary bem-sucedido:', result.url);
         return {
@@ -128,14 +140,17 @@ class IntegrationsAPI {
         };
       } catch (error) {
         console.error('❌ Erro ao fazer upload no Cloudinary:', error);
-        console.warn('Usando fallback...');
+        console.error('❌ Mensagem de erro:', error.message);
+        console.warn('⚠️ Usando fallback...');
+        // Não retorna aqui, deixa cair no fallback abaixo
       }
     } else {
-      console.warn('⚠️ Cloudinary não configurado. Variáveis necessárias:', {
-        cloudName: import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || 'FALTA',
-        apiKey: import.meta.env.VITE_CLOUDINARY_API_KEY || 'FALTA',
-        uploadPreset: import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || 'FALTA'
-      });
+      const missing = [];
+      if (!cloudName) missing.push('VITE_CLOUDINARY_CLOUD_NAME');
+      if (!uploadPreset) missing.push('VITE_CLOUDINARY_UPLOAD_PRESET');
+      
+      console.warn('⚠️ Cloudinary não configurado. Variáveis faltando:', missing);
+      console.warn('⚠️ Adicione essas variáveis no Vercel e faça redeploy!');
     }
     
     // Fallback: usar blob URL apenas em desenvolvimento
@@ -157,13 +172,17 @@ class IntegrationsAPI {
     await delay(1000);
     
     // Tentar usar Cloudinary se estiver configurado
-    if (file && import.meta.env.VITE_CLOUDINARY_CLOUD_NAME) {
+    const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+    const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+    
+    if (file && cloudName && uploadPreset) {
       console.log('☁️ Tentando upload privado no Cloudinary...');
+      console.log('📋 Configuração:', { cloudName, uploadPreset, fileName: file.name });
       try {
         const { uploadToCloudinary } = await import('@/config/cloudinary');
         const result = await uploadToCloudinary(file, {
           folder: 'private',
-          uploadPreset: import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET || 'default_preset'
+          uploadPreset: uploadPreset
         });
         console.log('✅ Upload Cloudinary privado bem-sucedido:', result.url);
         return {
@@ -172,8 +191,16 @@ class IntegrationsAPI {
         };
       } catch (error) {
         console.error('❌ Erro ao fazer upload privado no Cloudinary:', error);
-        console.warn('Usando fallback...');
+        console.error('❌ Mensagem de erro:', error.message);
+        console.warn('⚠️ Usando fallback...');
+        // Não retorna aqui, deixa cair no fallback abaixo
       }
+    } else {
+      const missing = [];
+      if (!cloudName) missing.push('VITE_CLOUDINARY_CLOUD_NAME');
+      if (!uploadPreset) missing.push('VITE_CLOUDINARY_UPLOAD_PRESET');
+      
+      console.warn('⚠️ Cloudinary não configurado para upload privado. Variáveis faltando:', missing);
     }
     
     // Fallback: usar blob URL apenas em desenvolvimento
