@@ -1,5 +1,6 @@
 // API local que substitui o base44
 import { db } from './localStorage';
+import { apiClient, API_URL } from '@/config/api';
 
 // Simular delay de rede
 const delay = (ms = 100) => new Promise(resolve => setTimeout(resolve, ms));
@@ -29,36 +30,115 @@ class EntityAPI {
   }
 
   async list(sortBy = '', limit = null) {
+    // Tentar usar backend se disponível
+    if (this.entityName === 'Product' && API_URL && API_URL !== 'http://localhost:10000') {
+      try {
+        const products = await apiClient.get('/api/products');
+        return Array.isArray(products) ? products : [];
+      } catch (error) {
+        console.warn('⚠️ Backend não disponível, usando localStorage:', error.message);
+      }
+    }
     await delay();
     return db.filter(this.entityName, {}, sortBy, limit);
   }
 
   async filter(filters = {}, sortBy = '', limit = null) {
+    // Tentar usar backend se disponível
+    if (this.entityName === 'Product' && API_URL && API_URL !== 'http://localhost:10000') {
+      try {
+        const params = new URLSearchParams();
+        if (filters.status) params.append('status', filters.status);
+        if (filters.category) params.append('category', filters.category);
+        if (filters.search) params.append('search', filters.search);
+        
+        const products = await apiClient.get(`/api/products?${params.toString()}`);
+        return Array.isArray(products) ? products : [];
+      } catch (error) {
+        console.warn('⚠️ Backend não disponível, usando localStorage:', error.message);
+      }
+    }
     await delay();
     return db.filter(this.entityName, filters, sortBy, limit);
   }
 
   async get(id) {
+    // Tentar usar backend se disponível
+    if (this.entityName === 'Product' && API_URL && API_URL !== 'http://localhost:10000') {
+      try {
+        return await apiClient.get(`/api/products/${id}`);
+      } catch (error) {
+        console.warn('⚠️ Backend não disponível, usando localStorage:', error.message);
+      }
+    }
     await delay();
     return db.getById(this.entityName, id);
   }
 
   async create(data) {
+    // Tentar usar backend se disponível
+    if (this.entityName === 'Product' && API_URL && API_URL !== 'http://localhost:10000') {
+      try {
+        const product = await apiClient.post('/api/products', data);
+        console.log('✅ Produto salvo no backend:', product.id);
+        return product;
+      } catch (error) {
+        console.error('❌ Erro ao salvar no backend:', error);
+        console.warn('⚠️ Usando localStorage como fallback');
+      }
+    }
     await delay();
-    return db.create(this.entityName, data);
+    const result = db.create(this.entityName, data);
+    console.log('⚠️ Produto salvo apenas no localStorage (não persiste)');
+    return result;
   }
 
   async update(id, data) {
+    // Tentar usar backend se disponível
+    if (this.entityName === 'Product' && API_URL && API_URL !== 'http://localhost:10000') {
+      try {
+        return await apiClient.put(`/api/products/${id}`, data);
+      } catch (error) {
+        console.warn('⚠️ Backend não disponível, usando localStorage:', error.message);
+      }
+    }
     await delay();
     return db.update(this.entityName, id, data);
   }
 
   async delete(id) {
+    // Tentar usar backend se disponível
+    if (this.entityName === 'Product' && API_URL && API_URL !== 'http://localhost:10000') {
+      try {
+        await apiClient.delete(`/api/products/${id}`);
+        return { success: true };
+      } catch (error) {
+        console.warn('⚠️ Backend não disponível, usando localStorage:', error.message);
+      }
+    }
     await delay();
     return db.delete(this.entityName, id);
   }
 
   async bulkCreate(items) {
+    // Tentar usar backend se disponível
+    if (this.entityName === 'Product' && API_URL && API_URL !== 'http://localhost:10000') {
+      try {
+        const results = [];
+        for (const item of items) {
+          try {
+            const product = await apiClient.post('/api/products', item);
+            results.push(product);
+          } catch (error) {
+            console.error('Erro ao criar produto:', error);
+          }
+        }
+        console.log(`✅ ${results.length} produtos salvos no backend`);
+        return results;
+      } catch (error) {
+        console.warn('⚠️ Backend não disponível, usando localStorage:', error.message);
+      }
+    }
     await delay(300);
     return db.bulkCreate(this.entityName, items);
   }
