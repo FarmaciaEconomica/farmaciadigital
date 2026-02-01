@@ -90,11 +90,13 @@ class EntityAPI {
     console.log('🔍 ===== CRIAR PRODUTO =====');
     console.log('Entity:', this.entityName);
     console.log('API_URL:', API_URL);
+    console.log('VITE_API_URL:', import.meta.env.VITE_API_URL || '❌ UNDEFINED');
+    console.log('VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL || '❌ UNDEFINED');
     
     // Tentar usar backend se disponível
     if (this.entityName === 'Product') {
       const isLocalhost = API_URL.includes('localhost') || API_URL === 'http://localhost:10000';
-      const shouldUseBackend = API_URL && !isLocalhost;
+      const shouldUseBackend = API_URL && !isLocalhost && API_URL.startsWith('http');
       
       console.log('isLocalhost?', isLocalhost);
       console.log('shouldUseBackend?', shouldUseBackend);
@@ -111,7 +113,9 @@ class EntityAPI {
           console.error('❌ Erro ao salvar no backend:', error);
           console.error('❌ Detalhes:', error.message);
           console.error('❌ Stack:', error.stack);
+          console.error('❌ URL tentada:', `${API_URL}/api/products`);
           console.warn('⚠️ Usando localStorage como fallback');
+          // Continuar para salvar no localStorage como fallback
         }
       } else {
         console.log('ℹ️ Backend não configurado ou localhost');
@@ -128,11 +132,20 @@ class EntityAPI {
 
   async update(id, data) {
     // Tentar usar backend se disponível
-    if (this.entityName === 'Product' && API_URL && API_URL !== 'http://localhost:10000') {
-      try {
-        return await apiClient.put(`/api/products/${id}`, data);
-      } catch (error) {
-        console.warn('⚠️ Backend não disponível, usando localStorage:', error.message);
+    if (this.entityName === 'Product') {
+      const isLocalhost = API_URL.includes('localhost') || API_URL === 'http://localhost:10000';
+      const shouldUseBackend = API_URL && !isLocalhost && API_URL.startsWith('http');
+      
+      if (shouldUseBackend) {
+        try {
+          console.log('🔍 Atualizando produto no backend:', id);
+          const product = await apiClient.put(`/api/products/${id}`, data);
+          console.log('✅ Produto atualizado no backend:', product.id);
+          return product;
+        } catch (error) {
+          console.error('❌ Erro ao atualizar no backend:', error.message);
+          console.warn('⚠️ Usando localStorage como fallback');
+        }
       }
     }
     await delay();
@@ -141,12 +154,20 @@ class EntityAPI {
 
   async delete(id) {
     // Tentar usar backend se disponível
-    if (this.entityName === 'Product' && API_URL && API_URL !== 'http://localhost:10000') {
-      try {
-        await apiClient.delete(`/api/products/${id}`);
-        return { success: true };
-      } catch (error) {
-        console.warn('⚠️ Backend não disponível, usando localStorage:', error.message);
+    if (this.entityName === 'Product') {
+      const isLocalhost = API_URL.includes('localhost') || API_URL === 'http://localhost:10000';
+      const shouldUseBackend = API_URL && !isLocalhost && API_URL.startsWith('http');
+      
+      if (shouldUseBackend) {
+        try {
+          console.log('🔍 Deletando produto no backend:', id);
+          await apiClient.delete(`/api/products/${id}`);
+          console.log('✅ Produto deletado no backend:', id);
+          return { success: true };
+        } catch (error) {
+          console.error('❌ Erro ao deletar no backend:', error.message);
+          console.warn('⚠️ Usando localStorage como fallback');
+        }
       }
     }
     await delay();
@@ -154,26 +175,75 @@ class EntityAPI {
   }
 
   async bulkCreate(items) {
+    console.log('🔍 ===== BULK CREATE PRODUTOS =====');
+    console.log('Entity:', this.entityName);
+    console.log('Quantidade:', items.length);
+    console.log('API_URL:', API_URL);
+    console.log('VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL || '❌ UNDEFINED');
+    
     // Tentar usar backend se disponível
-    if (this.entityName === 'Product' && API_URL && API_URL !== 'http://localhost:10000') {
-      try {
+    if (this.entityName === 'Product') {
+      const isLocalhost = API_URL.includes('localhost') || API_URL === 'http://localhost:10000';
+      const shouldUseBackend = API_URL && !isLocalhost && API_URL.startsWith('http');
+      
+      console.log('isLocalhost?', isLocalhost);
+      console.log('shouldUseBackend?', shouldUseBackend);
+      
+      if (shouldUseBackend) {
+        console.log('🔍 Tentando salvar produtos no backend:', API_URL);
         const results = [];
-        for (const item of items) {
+        let successCount = 0;
+        let errorCount = 0;
+        
+        for (let i = 0; i < items.length; i++) {
+          const item = items[i];
           try {
             const product = await apiClient.post('/api/products', item);
             results.push(product);
+            successCount++;
+            
+            // Log de progresso a cada 50 produtos
+            if ((i + 1) % 50 === 0) {
+              console.log(`📊 Progresso: ${i + 1}/${items.length} produtos processados`);
+            }
           } catch (error) {
-            console.error('Erro ao criar produto:', error);
+            errorCount++;
+            console.error(`❌ Erro ao criar produto ${i + 1} (${item.name}):`, error.message);
+            // Continuar com os próximos produtos mesmo se um falhar
+          }
+          
+          // Pequeno delay para não sobrecarregar o servidor
+          if ((i + 1) % 10 === 0) {
+            await new Promise(resolve => setTimeout(resolve, 50));
           }
         }
-        console.log(`✅ ${results.length} produtos salvos no backend`);
-        return results;
-      } catch (error) {
-        console.warn('⚠️ Backend não disponível, usando localStorage:', error.message);
+        
+        console.log(`✅ ${successCount} produtos salvos no backend`);
+        if (errorCount > 0) {
+          console.warn(`⚠️ ${errorCount} produtos falharam ao salvar no backend`);
+        }
+        console.log('============================');
+        
+        // Se pelo menos alguns produtos foram salvos, retornar os resultados
+        if (results.length > 0) {
+          return results;
+        } else {
+          console.warn('⚠️ Nenhum produto foi salvo no backend, usando localStorage como fallback');
+        }
+      } else {
+        console.log('ℹ️ Backend não configurado ou localhost');
+        console.log('ℹ️ API_URL atual:', API_URL);
+        console.log('ℹ️ Configure VITE_API_BASE_URL no Vercel!');
       }
     }
+    
+    // Fallback para localStorage
+    console.log('💾 Salvando produtos no localStorage...');
     await delay(300);
-    return db.bulkCreate(this.entityName, items);
+    const result = db.bulkCreate(this.entityName, items);
+    console.log('⚠️ Produtos salvos apenas no localStorage (não persistem entre sessões)');
+    console.log('============================');
+    return result;
   }
 }
 
