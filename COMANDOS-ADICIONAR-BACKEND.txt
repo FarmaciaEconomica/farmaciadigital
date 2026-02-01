@@ -1,0 +1,24 @@
+═══════════════════════════════════════════════════════════════
+  COMANDOS PARA ADICIONAR BACKEND AO GIT
+═══════════════════════════════════════════════════════════════
+
+Execute estes comandos na pasta raiz do projeto (onde está o .git):
+
+1. Adicionar backend:
+   git add backend/
+
+2. Verificar o que será commitado:
+   git status
+
+3. Fazer commit:
+   git commit -m "Add backend folder for Render deployment"
+
+4. Fazer push:
+   git push
+
+═══════════════════════════════════════════════════════════════
+
+OU use o script PowerShell:
+   .\adicionar-backend-git.ps1
+
+═══════════════════════════════════════════════════════════════
