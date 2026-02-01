@@ -379,6 +379,11 @@ export default function AdminImportProducts() {
   const handleImport = async () => {
     if (parsedData.length === 0) return;
 
+    console.log('🚀 ===== INICIANDO IMPORTAÇÃO =====');
+    console.log('📦 Total de produtos para importar:', parsedData.length);
+    console.log('🔍 Verificando configuração...');
+    console.log('VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL || '❌ UNDEFINED');
+    
     setIsImporting(true);
     setImportProgress(0);
     setImportResults({ success: 0, errors: 0, updated: 0, skipped: 0 });
@@ -441,9 +446,13 @@ export default function AdminImportProducts() {
       });
 
       try {
-        await base44.entities.Product.bulkCreate(productsToCreate);
+        console.log(`🚀 Iniciando bulkCreate para lote ${Math.floor(i / batchSize) + 1} (${batch.length} produtos)`);
+        const result = await base44.entities.Product.bulkCreate(productsToCreate);
+        console.log(`✅ Lote ${Math.floor(i / batchSize) + 1} concluído:`, result?.length || batch.length, 'produtos');
         success += batch.length;
       } catch (error) {
+        console.error(`❌ Erro no lote ${Math.floor(i / batchSize) + 1}:`, error);
+        console.error('❌ Stack:', error.stack);
         // Se falhar em lote, tenta um por um para identificar qual falhou
         for (const product of batch) {
           try {
