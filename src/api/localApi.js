@@ -32,41 +32,53 @@ class EntityAPI {
   async list(sortBy = '', limit = null) {
     // Tentar usar backend se disponível
     if (this.entityName === 'Product') {
-      const shouldUseBackend = API_URL && 
-        API_URL !== 'http://localhost:10000' && 
-        !API_URL.includes('localhost');
+      const isLocalhost = API_URL.includes('localhost') || API_URL === 'http://localhost:10000';
+      const shouldUseBackend = API_URL && !isLocalhost && API_URL.startsWith('http');
       
       if (shouldUseBackend) {
         try {
           console.log('🔍 Tentando buscar produtos do backend:', API_URL);
+          console.log('VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL || '❌ UNDEFINED');
           const products = await apiClient.get('/api/products');
           console.log(`✅ ${products.length} produtos carregados do backend`);
           return Array.isArray(products) ? products : [];
         } catch (error) {
           console.error('❌ Erro ao buscar do backend:', error);
+          console.error('❌ URL tentada:', `${API_URL}/api/products`);
+          console.error('❌ Detalhes:', error.message);
           console.warn('⚠️ Usando localStorage como fallback');
         }
       } else {
         console.log('ℹ️ Usando localStorage (backend não configurado ou localhost)');
+        console.log('ℹ️ API_URL atual:', API_URL);
+        console.log('ℹ️ Configure VITE_API_BASE_URL no Vercel!');
       }
     }
     await delay();
-    return db.filter(this.entityName, {}, sortBy, limit);
+    const localData = db.filter(this.entityName, {}, sortBy, limit);
+    console.log(`💾 ${localData.length} produtos carregados do localStorage`);
+    return localData;
   }
 
   async filter(filters = {}, sortBy = '', limit = null) {
     // Tentar usar backend se disponível
-    if (this.entityName === 'Product' && API_URL && API_URL !== 'http://localhost:10000') {
-      try {
-        const params = new URLSearchParams();
-        if (filters.status) params.append('status', filters.status);
-        if (filters.category) params.append('category', filters.category);
-        if (filters.search) params.append('search', filters.search);
-        
-        const products = await apiClient.get(`/api/products?${params.toString()}`);
-        return Array.isArray(products) ? products : [];
-      } catch (error) {
-        console.warn('⚠️ Backend não disponível, usando localStorage:', error.message);
+    if (this.entityName === 'Product') {
+      const isLocalhost = API_URL.includes('localhost') || API_URL === 'http://localhost:10000';
+      const shouldUseBackend = API_URL && !isLocalhost && API_URL.startsWith('http');
+      
+      if (shouldUseBackend) {
+        try {
+          const params = new URLSearchParams();
+          if (filters.status) params.append('status', filters.status);
+          if (filters.category) params.append('category', filters.category);
+          if (filters.search) params.append('search', filters.search);
+          
+          const products = await apiClient.get(`/api/products?${params.toString()}`);
+          return Array.isArray(products) ? products : [];
+        } catch (error) {
+          console.error('❌ Erro ao filtrar do backend:', error.message);
+          console.warn('⚠️ Usando localStorage como fallback');
+        }
       }
     }
     await delay();
@@ -75,11 +87,17 @@ class EntityAPI {
 
   async get(id) {
     // Tentar usar backend se disponível
-    if (this.entityName === 'Product' && API_URL && API_URL !== 'http://localhost:10000') {
-      try {
-        return await apiClient.get(`/api/products/${id}`);
-      } catch (error) {
-        console.warn('⚠️ Backend não disponível, usando localStorage:', error.message);
+    if (this.entityName === 'Product') {
+      const isLocalhost = API_URL.includes('localhost') || API_URL === 'http://localhost:10000';
+      const shouldUseBackend = API_URL && !isLocalhost && API_URL.startsWith('http');
+      
+      if (shouldUseBackend) {
+        try {
+          return await apiClient.get(`/api/products/${id}`);
+        } catch (error) {
+          console.error('❌ Erro ao buscar produto do backend:', error.message);
+          console.warn('⚠️ Usando localStorage como fallback');
+        }
       }
     }
     await delay();
