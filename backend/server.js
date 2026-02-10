@@ -242,7 +242,7 @@ app.get('/api/health', async (req, res) => {
   });
 });
 
-// ========== Rotas de produtos ==========
+// ========== Rotas de produtos (públicas: qualquer um pode listar/ver sem login) ==========
 app.get('/api/products', async (req, res) => {
   try {
     if (!usePostgres) {
@@ -344,7 +344,7 @@ app.post('/api/orders', (req, res) => {
   res.json({ success: true, order: req.body });
 });
 
-// ========== Rotas de categorias ==========
+// ========== Rotas de categorias (públicas: qualquer um pode listar sem login) ==========
 app.get('/api/categories', async (req, res) => {
   try {
     if (!usePostgres) {

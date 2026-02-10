@@ -30,33 +30,44 @@ class EntityAPI {
   }
 
   async list(sortBy = '', limit = null) {
-    // Tentar usar backend se disponível
+    const isLocalhost = API_URL.includes('localhost') || API_URL === 'http://localhost:10000';
+    const shouldUseBackend = API_URL && !isLocalhost && API_URL.startsWith('http');
+
+    // Tentar usar backend se disponível - Produtos
     if (this.entityName === 'Product') {
-      const isLocalhost = API_URL.includes('localhost') || API_URL === 'http://localhost:10000';
-      const shouldUseBackend = API_URL && !isLocalhost && API_URL.startsWith('http');
-      
       if (shouldUseBackend) {
         try {
           console.log('🔍 Tentando buscar produtos do backend:', API_URL);
-          console.log('VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL || '❌ UNDEFINED');
           const products = await apiClient.get('/api/products');
           console.log(`✅ ${products.length} produtos carregados do backend`);
           return Array.isArray(products) ? products : [];
         } catch (error) {
           console.error('❌ Erro ao buscar do backend:', error);
-          console.error('❌ URL tentada:', `${API_URL}/api/products`);
-          console.error('❌ Detalhes:', error.message);
           console.warn('⚠️ Usando localStorage como fallback');
         }
-      } else {
-        console.log('ℹ️ Usando localStorage (backend não configurado ou localhost)');
-        console.log('ℹ️ API_URL atual:', API_URL);
-        console.log('ℹ️ Configure VITE_API_BASE_URL no Vercel!');
       }
     }
+
+    // Tentar usar backend se disponível - Categorias (público, sem auth)
+    if (this.entityName === 'Category') {
+      if (shouldUseBackend) {
+        try {
+          const categories = await apiClient.get('/api/categories');
+          return Array.isArray(categories) ? categories : [];
+        } catch (error) {
+          console.error('❌ Erro ao buscar categorias do backend:', error.message);
+          console.warn('⚠️ Usando localStorage como fallback');
+        }
+      }
+      await delay();
+      return db.filter(this.entityName, {}, sortBy, limit);
+    }
+
     await delay();
     const localData = db.filter(this.entityName, {}, sortBy, limit);
-    console.log(`💾 ${localData.length} produtos carregados do localStorage`);
+    if (this.entityName === 'Product') {
+      console.log(`💾 ${localData.length} produtos carregados do localStorage`);
+    }
     return localData;
   }
 

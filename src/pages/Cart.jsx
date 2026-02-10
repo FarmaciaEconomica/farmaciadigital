@@ -29,8 +29,10 @@ import FreeShippingProgress from '@/components/pharmacy/FreeShippingProgress';
 import SmartSuggestions from '@/components/pharmacy/SmartSuggestions';
 import CouponDisplay from '@/components/pharmacy/CouponDisplay';
 import { validateCoupon, calculateCouponDiscount } from '@/utils/coupons';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function Cart() {
+  const { user } = useAuth();
   const [items, setItems] = useState([]);
   const [couponCode, setCouponCode] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState(null);
@@ -39,6 +41,9 @@ export default function Cart() {
   const [deliveryOption, setDeliveryOption] = useState('motoboy');
   const [freteCalculado, setFreteCalculado] = useState(false);
   const [customerZipCode, setCustomerZipCode] = useState('');
+  const [guestName, setGuestName] = useState('');
+  const [guestEmail, setGuestEmail] = useState('');
+  const [guestPhone, setGuestPhone] = useState('');
 
   useEffect(() => {
     const saved = localStorage.getItem('pharmacyCart');
@@ -232,6 +237,14 @@ export default function Cart() {
       return;
     }
 
+    // Visitante: exige nome, e-mail e telefone
+    if (!user) {
+      if (!guestName.trim() || !guestEmail.trim() || !guestPhone.trim()) {
+        toast.error('Preencha nome, e-mail e telefone para finalizar o pedido');
+        return;
+      }
+    }
+
     // Validar itens antes de criar pedido
     setIsCreatingOrder(true);
     
@@ -244,15 +257,16 @@ export default function Cart() {
         return;
       }
 
-      // Obter dados do cliente (se logado)
-      const user = await base44.auth.me();
+      const contactName = user?.full_name || guestName.trim();
+      const contactEmail = user?.email || guestEmail.trim();
+      const contactPhone = user?.phone || guestPhone.trim();
       
       // Criar pedido
       const orderData = {
         order_number: `PED${Date.now()}`,
-        customer_name: user?.full_name || 'Cliente',
-        customer_email: user?.email || '',
-        customer_phone: user?.phone || '',
+        customer_name: contactName,
+        customer_email: contactEmail,
+        customer_phone: contactPhone,
         items: items.map(item => ({
           product_id: item.id,
           name: item.name,
@@ -281,10 +295,10 @@ export default function Cart() {
       // Limpar carrinho
       updateCart([]);
       
-      toast.success('Pedido criado com sucesso! Acompanhe o status na área do cliente.');
+      toast.success(user ? 'Pedido criado com sucesso! Acompanhe o status na área do cliente.' : 'Pedido criado com sucesso! Entraremos em contato em breve.');
       
-      // Redirecionar para área do cliente ou página de pedidos
-      window.location.href = createPageUrl('CustomerArea');
+      // Logado: área do cliente; visitante: home
+      window.location.href = user ? createPageUrl('CustomerArea') : createPageUrl('Home');
     } catch (error) {
       console.error('Erro ao criar pedido:', error);
       toast.error('Erro ao criar pedido. Tente novamente.');
@@ -294,18 +308,23 @@ export default function Cart() {
   };
 
   const handleWhatsAppCheckout = async () => {
+    if (!user && (!guestName.trim() || !guestEmail.trim() || !guestPhone.trim())) {
+      toast.error('Preencha nome, e-mail e telefone para finalizar o pedido');
+      return;
+    }
     setIsCreatingOrder(true);
     
     try {
-      // Obter dados do cliente (se logado)
-      const user = await base44.auth.me();
+      const contactName = user?.full_name || guestName.trim();
+      const contactEmail = user?.email || guestEmail.trim();
+      const contactPhone = user?.phone || guestPhone.trim();
       
       // Criar pedido no sistema mesmo no modo WhatsApp (para gestão)
       const orderData = {
         order_number: `PED${Date.now()}`,
-        customer_name: user?.full_name || 'Cliente',
-        customer_email: user?.email || '',
-        customer_phone: user?.phone || '',
+        customer_name: contactName,
+        customer_email: contactEmail,
+        customer_phone: contactPhone,
         items: items.map(item => ({
           product_id: item.id,
           name: item.name,
@@ -582,6 +601,43 @@ export default function Cart() {
                 }
               }}
             />
+
+            {!user && (
+              <div className="bg-white rounded-2xl p-6 shadow-sm">
+                <h3 className="font-semibold text-gray-900 mb-4">Dados para contato</h3>
+                <p className="text-sm text-gray-500 mb-4">Preencha para que possamos confirmar seu pedido.</p>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Nome *</label>
+                    <Input
+                      value={guestName}
+                      onChange={(e) => setGuestName(e.target.value)}
+                      placeholder="Seu nome completo"
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">E-mail *</label>
+                    <Input
+                      type="email"
+                      value={guestEmail}
+                      onChange={(e) => setGuestEmail(e.target.value)}
+                      placeholder="seu@email.com"
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Telefone *</label>
+                    <Input
+                      value={guestPhone}
+                      onChange={(e) => setGuestPhone(e.target.value)}
+                      placeholder="(11) 99999-9999"
+                      className="mt-1"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="bg-white rounded-2xl p-6 shadow-sm">
               <h3 className="font-semibold text-gray-900 mb-6">Resumo do Pedido</h3>
