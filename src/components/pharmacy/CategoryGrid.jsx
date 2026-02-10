@@ -190,38 +190,34 @@ export default function CategoryGrid() {
   });
 
   // Filtrar categorias que têm produtos ativos e disponíveis (com estoque)
-  // REGRA: Só mostrar categoria que tenha produto ativo e disponível
+  // Fallback: se API de categorias vier vazia, derivar a partir dos produtos (defaultCategories)
   const displayCategories = React.useMemo(() => {
-    if (!categories || categories.length === 0) return [];
-    
-    // Filtrar produtos disponíveis (ativos, com estoque > 0 ou estoque infinito)
+    // Produtos disponíveis (ativos, com estoque)
     const availableProducts = allProducts.filter(p => {
       if (p.status !== 'active' || !p.price || p.price <= 0 || !p.name) return false;
-      // Produtos com estoque infinito sempre disponíveis
       if (p.has_infinite_stock) return true;
-      // Produtos com estoque zero não devem aparecer
       if (p.stock_quantity !== undefined && p.stock_quantity <= 0) return false;
-      // Verificar estoque mínimo se habilitado
       if (p.min_stock_enabled) {
         const minStock = p.min_stock || 10;
         if (p.stock_quantity !== undefined && p.stock_quantity < minStock) return false;
       }
       return true;
     });
-    
-    // Criar um Set com slugs de categorias que têm produtos disponíveis
-    // Usar apenas categorias que realmente têm produtos
+
     const categoriesWithProducts = new Set(
       availableProducts
-        .filter(p => p.category && p.category.trim() !== '')
-        .map(p => p.category)
+        .filter(p => p.category && String(p.category).trim() !== '')
+        .map(p => String(p.category).trim())
     );
-    
-    // Filtrar categorias que têm pelo menos um produto disponível
-    // Se não houver categorias do banco com produtos, retornar vazio
-    const filtered = categories.filter(cat => categoriesWithProducts.has(cat.slug));
-    
-    return filtered;
+
+    // Se temos categorias da API, filtrar só as que têm produtos
+    if (categories && categories.length > 0) {
+      const filtered = categories.filter(cat => categoriesWithProducts.has(cat.slug));
+      if (filtered.length > 0) return filtered;
+    }
+
+    // Fallback: usar defaultCategories para slugs que existem nos produtos
+    return defaultCategories.filter(def => categoriesWithProducts.has(def.slug));
   }, [categories, allProducts]);
 
   if (isLoading) {
