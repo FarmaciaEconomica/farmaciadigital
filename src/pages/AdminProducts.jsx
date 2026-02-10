@@ -655,9 +655,9 @@ export default function AdminProducts() {
   };
 
   const handleFetchImageByBarcode = async () => {
-    const barcode = formData.barcode?.replace(/\D/g, '');
-    if (!barcode || barcode.length < 8) {
-      toast.error('Informe um código de barras válido (8-13 dígitos)');
+    const barcode = (formData.barcode || '').replace(/\D/g, '');
+    if (barcode.length < 8) {
+      toast.error('Informe um código de barras válido (8 a 13 dígitos)');
       return;
     }
     if (formData.requires_prescription) {
@@ -676,10 +676,11 @@ export default function AdminProducts() {
         }));
         toast.success(`Imagem encontrada (${result.source}) e aplicada!`);
       } else {
-        toast.warning('Produto não encontrado no Open Food Facts ou Open Beauty Facts');
+        toast.warning('Produto não encontrado. Tente outro código EAN.');
       }
-    } catch {
-      toast.error('Erro ao buscar imagem por código de barras');
+    } catch (err) {
+      console.error('Erro ao buscar imagem:', err);
+      toast.error(err?.message || 'Erro ao buscar imagem. Verifique a conexão.');
     } finally {
       setFetchingImageByBarcode(false);
     }
@@ -1846,7 +1847,7 @@ export default function AdminProducts() {
                     variant="outline"
                     size="sm"
                     onClick={handleFetchImageByBarcode}
-                    disabled={fetchingImageByBarcode || !formData.barcode || formData.barcode.replace(/\D/g, '').length < 8}
+                    disabled={fetchingImageByBarcode || (formData.barcode || '').replace(/\D/g, '').length < 8}
                     className="shrink-0"
                   >
                     {fetchingImageByBarcode ? (
@@ -1915,29 +1916,60 @@ export default function AdminProducts() {
                         ))}
                       </div>
                       {formData.images.length < 4 && (
-                        <label className="flex flex-col items-center justify-center h-32 border-2 border-dashed rounded-lg cursor-pointer hover:bg-gray-50 mt-2">
-                          <ImagePlus className="w-6 h-6 text-gray-400 mb-1" />
-                          <span className="text-xs text-gray-500">Adicionar imagem ({formData.images.length}/4)</span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={handleImageUpload}
-                            className="hidden"
-                          />
-                        </label>
+                        <div className="mt-2 space-y-2">
+                          <label className="flex flex-col items-center justify-center h-32 border-2 border-dashed rounded-lg cursor-pointer hover:bg-gray-50">
+                            <ImagePlus className="w-6 h-6 text-gray-400 mb-1" />
+                            <span className="text-xs text-gray-500">Adicionar imagem ({formData.images.length}/4)</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={handleImageUpload}
+                              className="hidden"
+                            />
+                          </label>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={handleFetchImageByBarcode}
+                            disabled={fetchingImageByBarcode || (formData.barcode || '').replace(/\D/g, '').length < 8}
+                            className="w-full"
+                          >
+                            {fetchingImageByBarcode ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                            Buscar imagem por EAN
+                          </Button>
+                        </div>
                       )}
                     </div>
                   ) : (
-                    <label className="flex flex-col items-center justify-center h-40 border-2 border-dashed rounded-lg cursor-pointer hover:bg-gray-50">
-                      <ImagePlus className="w-8 h-8 text-gray-400 mb-2" />
-                      <span className="text-sm text-gray-500">Clique para adicionar imagem (0/4)</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleImageUpload}
-                        className="hidden"
-                      />
-                    </label>
+                    <div className="space-y-2">
+                      <label className="flex flex-col items-center justify-center h-40 border-2 border-dashed rounded-lg cursor-pointer hover:bg-gray-50">
+                        <ImagePlus className="w-8 h-8 text-gray-400 mb-2" />
+                        <span className="text-sm text-gray-500">Clique para adicionar imagem (0/4)</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleImageUpload}
+                          className="hidden"
+                        />
+                      </label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleFetchImageByBarcode}
+                        disabled={fetchingImageByBarcode || (formData.barcode || '').replace(/\D/g, '').length < 8}
+                        className="w-full"
+                      >
+                        {fetchingImageByBarcode ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        ) : null}
+                        Buscar imagem por EAN
+                      </Button>
+                      {(formData.barcode || '').length > 0 && (formData.barcode || '').replace(/\D/g, '').length < 8 && (
+                        <p className="text-xs text-amber-600">Preencha o código de barras (8-13 dígitos) para buscar</p>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
@@ -2056,19 +2088,39 @@ export default function AdminProducts() {
                     onCheckedChange={(v) => setFormData(prev => ({ ...prev, is_featured: v }))}
                   />
                 </div>
-                <div className="flex items-center justify-between">
-                  <Label>É Genérico</Label>
-                  <Switch
-                    checked={formData.is_generic}
-                    onCheckedChange={(v) => setFormData(prev => ({ ...prev, is_generic: v }))}
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <Label>Exige Receita</Label>
-                  <Switch
-                    checked={formData.requires_prescription}
-                    onCheckedChange={(v) => setFormData(prev => ({ ...prev, requires_prescription: v }))}
-                  />
+                <div className="space-y-2">
+                  <Label>Tipo de Tarja</Label>
+                  <RadioGroup
+                    value={
+                      formData.requires_prescription
+                        ? formData.is_generic
+                          ? 'tarjado_generico'
+                          : 'tarjado_marca'
+                        : 'nao_tarjado'
+                    }
+                    onValueChange={(v) => {
+                      setFormData(prev => ({
+                        ...prev,
+                        requires_prescription: v !== 'nao_tarjado',
+                        is_generic: v === 'tarjado_generico'
+                      }));
+                    }}
+                    className="flex flex-col gap-2"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="nao_tarjado" id="tarja-none" />
+                      <Label htmlFor="tarja-none" className="font-normal cursor-pointer">Não tarjado</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="tarjado_generico" id="tarja-generic" />
+                      <Label htmlFor="tarja-generic" className="font-normal cursor-pointer">Tarjado Genérico</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="tarjado_marca" id="tarja-brand" />
+                      <Label htmlFor="tarja-brand" className="font-normal cursor-pointer">De marca e Tarjado</Label>
+                    </div>
+                  </RadioGroup>
+                  <p className="text-xs text-gray-500">Produtos tarjados usam imagem padrão na loja.</p>
                 </div>
                 <div className="flex items-center justify-between">
                   <Label>Antibiótico</Label>
