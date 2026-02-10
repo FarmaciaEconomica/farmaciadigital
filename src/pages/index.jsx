@@ -55,14 +55,17 @@ import AdminStoreEditor from "./AdminStoreEditor";
 
 import AdminVisualEditor from "./AdminVisualEditor";
 
+import Login from "./Login";
+import Register from "./Register";
+import AdminLogin from "./AdminLogin";
+import ProtectedRoute from "@/components/ProtectedRoute";
 
 import { BrowserRouter as Router, Route, Routes, useLocation } from 'react-router-dom';
 
 const PAGES = {
-    
     AdminCustomers: AdminCustomers,
-    
     AdminDashboard: AdminDashboard,
+    AdminLogin: AdminLogin,
     
     AdminFinancial: AdminFinancial,
     
@@ -98,7 +101,8 @@ const PAGES = {
     Favorites: Favorites,
     
     Home: Home,
-    
+    Login: Login,
+    Register: Register,
     Product: Product,
     
     Promotions: Promotions,
@@ -143,61 +147,40 @@ function PagesContent() {
     return (
         <AdminSidebarProvider>
             <Layout currentPageName={currentPage}>
-                <Routes>            
+                <Routes>
                 <Route path="/" element={<Home />} />
-                <Route path="/AdminCustomers" element={<AdminCustomers />} />
-                
-                <Route path="/AdminDashboard" element={<AdminDashboard />} />
-                
-                <Route path="/AdminFinancial" element={<AdminFinancial />} />
-                
-                <Route path="/AdminImportHistory" element={<AdminImportHistory />} />
-                
-                <Route path="/AdminImportProducts" element={<AdminImportProducts />} />
-                
-                <Route path="/AdminOrders" element={<AdminOrders />} />
-                
-                <Route path="/AdminPrescriptions" element={<AdminPrescriptions />} />
-                
-                <Route path="/AdminMedications" element={<AdminMedications />} />
-                
-                <Route path="/AdminProducts" element={<AdminProducts />} />
-                
-                <Route path="/AdminPromotions" element={<AdminPromotions />} />
-                
-                <Route path="/AdminReports" element={<AdminReports />} />
-                
-                <Route path="/AdminSettings" element={<AdminSettings />} />
-                
+                <Route path="/login" element={<Login />} />
+                <Route path="/cadastro" element={<Register />} />
+                <Route path="/AdminLogin" element={<AdminLogin />} />
+
+                <Route path="/AdminCustomers" element={<ProtectedRoute><AdminCustomers /></ProtectedRoute>} />
+                <Route path="/AdminDashboard" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
+                <Route path="/AdminFinancial" element={<ProtectedRoute><AdminFinancial /></ProtectedRoute>} />
+                <Route path="/AdminImportHistory" element={<ProtectedRoute><AdminImportHistory /></ProtectedRoute>} />
+                <Route path="/AdminImportProducts" element={<ProtectedRoute><AdminImportProducts /></ProtectedRoute>} />
+                <Route path="/AdminOrders" element={<ProtectedRoute><AdminOrders /></ProtectedRoute>} />
+                <Route path="/AdminPrescriptions" element={<ProtectedRoute><AdminPrescriptions /></ProtectedRoute>} />
+                <Route path="/AdminMedications" element={<ProtectedRoute><AdminMedications /></ProtectedRoute>} />
+                <Route path="/AdminProducts" element={<ProtectedRoute><AdminProducts /></ProtectedRoute>} />
+                <Route path="/AdminPromotions" element={<ProtectedRoute><AdminPromotions /></ProtectedRoute>} />
+                <Route path="/AdminReports" element={<ProtectedRoute><AdminReports /></ProtectedRoute>} />
+                <Route path="/AdminSettings" element={<ProtectedRoute><AdminSettings /></ProtectedRoute>} />
+                <Route path="/AdminStoreEditor" element={<ProtectedRoute><AdminStoreEditor /></ProtectedRoute>} />
+                <Route path="/AdminVisualEditor" element={<ProtectedRoute><AdminVisualEditor /></ProtectedRoute>} />
+
                 <Route path="/Blog" element={<Blog />} />
-                
                 <Route path="/Cart" element={<Cart />} />
-                
                 <Route path="/Category" element={<Category />} />
-                
                 <Route path="/CustomerArea" element={<CustomerAreaEnhanced />} />
                 <Route path="/CustomerAreaOld" element={<CustomerArea />} />
-                
                 <Route path="/DeliveryAreas" element={<DeliveryAreas />} />
-                
                 <Route path="/Favorites" element={<Favorites />} />
-                
                 <Route path="/Home" element={<Home />} />
-                
                 <Route path="/Product" element={<Product />} />
-                
                 <Route path="/Promotions" element={<Promotions />} />
-                
                 <Route path="/Search" element={<Search />} />
-                
                 <Route path="/TrackOrder" element={<TrackOrder />} />
-                
                 <Route path="/UploadPrescription" element={<UploadPrescription />} />
-                
-                <Route path="/AdminStoreEditor" element={<AdminStoreEditor />} />
-                
-                <Route path="/AdminVisualEditor" element={<AdminVisualEditor />} />
-                
                 </Routes>
             </Layout>
         </AdminSidebarProvider>

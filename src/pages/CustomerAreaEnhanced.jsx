@@ -1,5 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
+import { useAuth } from '@/contexts/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
@@ -25,6 +27,8 @@ import AchievementsDisplay from '@/components/pharmacy/AchievementsDisplay';
  */
 export default function CustomerAreaEnhanced() {
   const [activeTab, setActiveTab] = useState('orders');
+  const navigate = useNavigate();
+  const { logout } = useAuth();
 
   const { data: user, isLoading: userLoading } = useQuery({
     queryKey: ['currentUser'],
@@ -60,9 +64,9 @@ export default function CustomerAreaEnhanced() {
 
   const handleLogout = async () => {
     try {
-      await base44.auth.signOut();
+      await logout();
       toast.success('Logout realizado com sucesso!');
-      window.location.href = '/';
+      navigate('/', { replace: true });
     } catch (error) {
       toast.error('Erro ao fazer logout');
     }
@@ -80,17 +84,7 @@ export default function CustomerAreaEnhanced() {
   }
 
   if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Acesso Restrito</h2>
-          <p className="text-gray-600 mb-6">Faça login para acessar sua área</p>
-          <Button onClick={() => window.location.href = '/login'}>
-            Fazer Login
-          </Button>
-        </div>
-      </div>
-    );
+    return <Navigate to="/login" state={{ from: '/CustomerArea' }} replace />;
   }
 
   return (

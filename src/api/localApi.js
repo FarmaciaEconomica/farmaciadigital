@@ -327,13 +327,49 @@ class EntityAPI {
   }
 }
 
+// Chaves de autenticação (backend real)
+const AUTH_TOKEN_KEY = 'auth_token';
+const AUTH_USER_KEY = 'auth_user';
+
+function useBackendAuth() {
+  const url = API_URL && (API_URL.includes('localhost') || API_URL === 'http://localhost:10000')
+    ? null
+    : API_URL;
+  return !!url;
+}
+
 // Autenticação
 class AuthAPI {
   async me() {
     await delay();
+    // Tentar backend com token
+    if (useBackendAuth()) {
+      const token = localStorage.getItem(AUTH_TOKEN_KEY);
+      if (!token) {
+        return null;
+      }
+      try {
+        const res = await fetch(`${API_URL}/api/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.status === 401) {
+          localStorage.removeItem(AUTH_TOKEN_KEY);
+          localStorage.removeItem(AUTH_USER_KEY);
+          return null;
+        }
+        if (!res.ok) throw new Error('Erro ao buscar usuário');
+        const user = await res.json();
+        localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
+        return user;
+      } catch (e) {
+        console.error('Erro auth/me:', e);
+        const cached = localStorage.getItem(AUTH_USER_KEY);
+        return cached ? JSON.parse(cached) : null;
+      }
+    }
+    // Fallback local
     let user = JSON.parse(localStorage.getItem('db_currentUser') || '{}');
     if (!user.id) {
-      // Criar usuário padrão se não existir
       user = {
         id: 'user_1',
         email: 'admin@farmacia.com',
@@ -346,8 +382,23 @@ class AuthAPI {
   }
 
   async login(email, password) {
-    await delay(500);
-    // Para desenvolvimento local, aceita qualquer login
+    await delay(300);
+    if (useBackendAuth()) {
+      try {
+        const res = await fetch(`${API_URL}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Erro no login');
+        localStorage.setItem(AUTH_TOKEN_KEY, data.token);
+        localStorage.setItem(AUTH_USER_KEY, JSON.stringify(data.user));
+        return { user: data.user, token: data.token };
+      } catch (e) {
+        throw e;
+      }
+    }
     const user = {
       id: 'user_1',
       email: email || 'admin@farmacia.com',
@@ -355,17 +406,44 @@ class AuthAPI {
       role: 'admin'
     };
     localStorage.setItem('db_currentUser', JSON.stringify(user));
-    return user;
+    return user; // sem token para modo local
   }
 
   async logout() {
     await delay();
+    localStorage.removeItem(AUTH_TOKEN_KEY);
+    localStorage.removeItem(AUTH_USER_KEY);
     localStorage.removeItem('db_currentUser');
     return { success: true };
   }
 
+  async signOut() {
+    return this.logout();
+  }
+
   async register(data) {
-    await delay(500);
+    await delay(300);
+    if (useBackendAuth()) {
+      try {
+        const res = await fetch(`${API_URL}/api/auth/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: data.email,
+            password: data.password,
+            full_name: data.full_name || data.name,
+            phone: data.phone
+          })
+        });
+        const result = await res.json();
+        if (!res.ok) throw new Error(result.error || 'Erro no cadastro');
+        localStorage.setItem(AUTH_TOKEN_KEY, result.token);
+        localStorage.setItem(AUTH_USER_KEY, JSON.stringify(result.user));
+        return { user: result.user, token: result.token };
+      } catch (e) {
+        throw e;
+      }
+    }
     const user = {
       id: `user_${Date.now()}`,
       email: data.email,
@@ -374,7 +452,7 @@ class AuthAPI {
       ...data
     };
     localStorage.setItem('db_currentUser', JSON.stringify(user));
-    return user;
+    return user; // sem token para modo local
   }
 }
 

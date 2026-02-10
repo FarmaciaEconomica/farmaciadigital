@@ -6,6 +6,7 @@ import {
   ShoppingCart, 
   Heart, 
   User,
+  LogOut,
   Menu,
   X,
   ChevronDown,
@@ -13,7 +14,8 @@ import {
   MapPin,
   Truck,
   FileText,
-  Percent
+  Percent,
+  LayoutDashboard
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +23,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useTheme } from './ThemeProvider';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
+import { useAuth } from '@/contexts/AuthContext';
 import LoyaltyCard from './LoyaltyCard';
 
 // Mapeamento de categorias padrão
@@ -40,6 +43,7 @@ const categoryMap = {
 export default function Header({ cartItemsCount = 0 }) {
   const navigate = useNavigate();
   const theme = useTheme();
+  const { user, isAdmin, logout } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isScrolled, setIsScrolled] = useState(false);
@@ -184,6 +188,35 @@ export default function Header({ cartItemsCount = 0 }) {
                       <FileText className="w-5 h-5" />
                       Enviar Receita
                     </Link>
+                    <div className="h-px bg-gray-200 my-2" />
+                    {!user ? (
+                      <>
+                        <Link to="/login" onClick={() => setIsOpen(false)} className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-100 text-gray-700 font-medium">
+                          <User className="w-5 h-5" />
+                          Entrar
+                        </Link>
+                        <Link to="/cadastro" onClick={() => setIsOpen(false)} className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-emerald-50 text-emerald-600 font-semibold">
+                          Cadastrar
+                        </Link>
+                      </>
+                    ) : (
+                      <>
+                        <Link to={createPageUrl('CustomerArea')} onClick={() => setIsOpen(false)} className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-gray-100 text-gray-700 font-medium">
+                          <User className="w-5 h-5" />
+                          Minha Conta
+                        </Link>
+                        {isAdmin && (
+                          <Link to={createPageUrl('AdminDashboard')} onClick={() => setIsOpen(false)} className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-100 text-slate-700 font-medium">
+                            <LayoutDashboard className="w-5 h-5" />
+                            Painel Admin
+                          </Link>
+                        )}
+                        <button type="button" onClick={() => { logout(); setIsOpen(false); navigate('/'); }} className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-red-50 text-red-600 font-medium w-full text-left">
+                          <LogOut className="w-5 h-5" />
+                          Sair
+                        </button>
+                      </>
+                    )}
                     {categories.length > 0 && (
                       <>
                         <div className="h-px bg-gray-200 my-2" />
@@ -294,13 +327,46 @@ export default function Header({ cartItemsCount = 0 }) {
               </Link>
               
               {/* Badge de Fidelidade */}
-              <LoyaltyCard customerId="guest" compact={true} />
+              <LoyaltyCard customerId={user?.id || 'guest'} compact={true} />
               
-              <Link to={createPageUrl('CustomerArea')}>
-                <Button variant="ghost" size="icon" className="hover:bg-gray-100 rounded-full">
-                  <User className="w-5 h-5 text-gray-700" />
-                </Button>
-              </Link>
+              {!user ? (
+                <>
+                  <Link to="/login">
+                    <Button variant="ghost" size="sm" className="hidden sm:inline-flex text-gray-700 hover:text-emerald-600">
+                      Entrar
+                    </Button>
+                  </Link>
+                  <Link to="/cadastro">
+                    <Button size="sm" className="hidden sm:inline-flex bg-emerald-600 hover:bg-emerald-700 text-white">
+                      Cadastrar
+                    </Button>
+                  </Link>
+                  <Link to={createPageUrl('CustomerArea')} className="sm:hidden">
+                    <Button variant="ghost" size="icon" className="hover:bg-gray-100 rounded-full">
+                      <User className="w-5 h-5 text-gray-700" />
+                    </Button>
+                  </Link>
+                </>
+              ) : (
+                <>
+                  {isAdmin && (
+                    <Link to={createPageUrl('AdminDashboard')}>
+                      <Button variant="outline" size="sm" className="hidden md:inline-flex text-gray-700 border-gray-300">
+                        <LayoutDashboard className="w-4 h-4 mr-1" />
+                        Admin
+                      </Button>
+                    </Link>
+                  )}
+                  <Link to={createPageUrl('CustomerArea')}>
+                    <Button variant="ghost" size="icon" className="hover:bg-gray-100 rounded-full" title="Minha conta">
+                      <User className="w-5 h-5 text-gray-700" />
+                    </Button>
+                  </Link>
+                  <Button variant="ghost" size="icon" className="hover:bg-gray-100 rounded-full text-gray-700" title="Sair" onClick={() => { logout(); navigate('/'); }}>
+                    <LogOut className="w-5 h-5" />
+                  </Button>
+                </>
+              )}
 
               <Link to={createPageUrl('Cart')}>
                 <Button variant="ghost" size="icon" className="relative hover:bg-gray-100 rounded-full">
