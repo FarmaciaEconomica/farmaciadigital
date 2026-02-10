@@ -327,6 +327,7 @@ export default function UploadPrescription() {
                           </>
                         )}
                       </Button>
+                    </div>
                   )}
 
                   <div className="mt-6 flex gap-2">
