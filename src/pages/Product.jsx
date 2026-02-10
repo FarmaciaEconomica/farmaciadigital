@@ -437,16 +437,6 @@ export default function Product() {
                   currentPrice={product.price} 
                 />
               )}
-              {(() => {
-                const installments = theme.installments || 3;
-                const hasInterest = theme.installmentHasInterest || false;
-                const installmentValue = product.price / installments;
-                return (
-                  <p className="text-sm text-gray-500 mt-1">
-                    ou {installments}x de {formatPriceWithSymbol(installmentValue)} {hasInterest ? 'com juros' : 'sem juros'}
-                  </p>
-                );
-              })()}
             </div>
 
             {/* Quantity and Add to cart */}

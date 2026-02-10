@@ -91,37 +91,62 @@ export default function Cart() {
     }
   };
 
+  const { data: promotions = [] } = useQuery({
+    queryKey: ['adminPromotions'],
+    queryFn: () => base44.entities.Promotion.list('-created_date', 100)
+  });
+
   const applyCoupon = (code = couponCode) => {
     if (!code) {
       toast.error('Digite um cupom');
       return;
     }
+    const codeUpper = code.trim().toUpperCase();
 
-    // Usar sistema de cupons aprimorado
-    const validation = validateCoupon(
-      code,
-      customerZipCode,
-      subtotal,
-      false // TODO: Verificar se é primeira compra do usuário
+    const promo = promotions.find(
+      p => p.active && p.type === 'coupon' && (p.code || '').toUpperCase() === codeUpper
     );
+    if (promo) {
+      const minPurchase = parseFloat(promo.min_purchase) || 0;
+      if (subtotal < minPurchase) {
+        toast.error(`Compra mínima de R$ ${minPurchase.toFixed(2)} para este cupom`);
+        return;
+      }
+      const val = parseFloat(promo.value) || 0;
+      const maxDisc = parseFloat(promo.max_discount) || Infinity;
+      let discount = 0;
+      let finalDeliveryFee = deliveryFee;
+      if ((promo.description || '').toLowerCase().includes('frete') || (promo.name || '').toLowerCase().includes('frete')) {
+        finalDeliveryFee = 0;
+      } else if (promo.type === 'coupon') {
+        discount = val <= 100 ? (subtotal * val / 100) : val;
+        discount = Math.min(discount, maxDisc, subtotal);
+      }
+      setAppliedCoupon({
+        code: codeUpper,
+        description: promo.name || promo.description || `Desconto ${val}%`,
+        type: (promo.description || '').toLowerCase().includes('frete') ? 'freeShipping' : (val <= 100 ? 'percentage' : 'fixed'),
+        value: val,
+        maxDiscount: maxDisc,
+        calculatedDiscount: discount,
+        finalDeliveryFee
+      });
+      setCouponCode(code);
+      toast.success(`Cupom ${codeUpper} aplicado!`);
+      return;
+    }
 
+    const validation = validateCoupon(code, customerZipCode, subtotal, false);
     if (!validation.valid) {
       toast.error(validation.error);
       return;
     }
-
-    const { discount, finalDeliveryFee } = calculateCouponDiscount(
-      validation,
-      subtotal,
-      deliveryFee
-    );
-
+    const { discount, finalDeliveryFee } = calculateCouponDiscount(validation, subtotal, deliveryFee);
     setAppliedCoupon({
       ...validation.coupon,
       calculatedDiscount: discount,
-      finalDeliveryFee: finalDeliveryFee
+      finalDeliveryFee
     });
-
     setCouponCode(code);
     toast.success(`Cupom ${code.toUpperCase()} aplicado com sucesso!`);
   };
@@ -588,9 +613,11 @@ export default function Cart() {
                     <span className="text-lg font-semibold">Total</span>
                     <span className="text-2xl font-bold text-emerald-600">R$ {total.toFixed(2)}</span>
                   </div>
-                  <p className="text-xs text-gray-500 text-right mt-1">
-                    ou 3x de R$ {(total / 3).toFixed(2)} sem juros
-                  </p>
+                  {theme.installmentMinValue != null && total >= theme.installmentMinValue && (
+                    <p className="text-xs text-gray-500 text-right mt-1">
+                      ou em até {theme.installments || 3}x de R$ {(total / (theme.installments || 3)).toFixed(2)} {theme.installmentHasInterest ? 'com juros' : 'sem juros'}
+                    </p>
+                  )}
                 </div>
               </div>
 

@@ -10,7 +10,8 @@ import {
   Eye,
   Check,
   X,
-  Clock
+  Clock,
+  MessageCircle
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import AdminSidebar from '@/components/admin/AdminSidebar';
@@ -161,24 +162,39 @@ export default function AdminPrescriptions() {
                   {new Date(prescription.created_date).toLocaleString('pt-BR')}
                 </div>
 
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Button
                     variant="outline"
                     size="sm"
-                    className="flex-1 rounded-lg"
+                    className="rounded-lg"
                     onClick={() => setSelectedPrescription(prescription)}
                   >
                     <Eye className="w-4 h-4 mr-1" />
                     Ver
                   </Button>
+                  {prescription.customer_phone && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="rounded-lg text-green-700 border-green-300 hover:bg-green-50"
+                      asChild
+                    >
+                      <a href={`https://wa.me/55${String(prescription.customer_phone).replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer">
+                        <MessageCircle className="w-4 h-4 mr-1" />
+                        WhatsApp
+                      </a>
+                    </Button>
+                  )}
                   {prescription.status === 'pending' && (
                     <>
                       <Button
                         size="sm"
                         className="bg-green-600 hover:bg-green-700 rounded-lg"
-                        onClick={() => updateStatus.mutate({ id: prescription.id, status: 'analyzed' })}
+                        onClick={() => updateStatus.mutate({ id: prescription.id, status: 'completed' })}
+                        title="Confirmar recebida"
                       >
-                        <Check className="w-4 h-4" />
+                        <Check className="w-4 h-4 mr-1" />
+                        Recebida
                       </Button>
                       <Button
                         size="sm"

@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import AdminSidebar from '@/components/admin/AdminSidebar';
 import { useAdminSidebar } from '@/contexts/AdminSidebarContext';
+import { useTheme } from '@/components/pharmacy/ThemeProvider';
 import { notifyProductBackInStock } from '@/utils/stockNotifications';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -96,6 +97,7 @@ const defaultCategories = [
 export default function AdminProducts() {
   const queryClient = useQueryClient();
   const { sidebarOpen } = useAdminSidebar();
+  const theme = useTheme();
   
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -1799,16 +1801,32 @@ export default function AdminProducts() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="product-brand">Marca/Laboratório</Label>
-                  <Input
-                    id="product-brand"
-                    value={formData.brand}
-                    onChange={(e) => setFormData(prev => ({ ...prev, brand: e.target.value }))}
-                    placeholder="Ex: Medley, Eurofarma, EMS"
-                    aria-describedby="brand-help"
-                  />
+                  <Label htmlFor="product-brand">Marca</Label>
+                  {(theme?.productBrands?.length > 0) ? (
+                    <Select
+                      value={formData.brand || ''}
+                      onValueChange={(v) => setFormData(prev => ({ ...prev, brand: v }))}
+                    >
+                      <SelectTrigger id="product-brand">
+                        <SelectValue placeholder="Selecione a marca" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">Nenhuma</SelectItem>
+                        {theme.productBrands.filter(Boolean).map((b) => (
+                          <SelectItem key={b} value={b}>{b}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      id="product-brand"
+                      value={formData.brand}
+                      onChange={(e) => setFormData(prev => ({ ...prev, brand: e.target.value }))}
+                      placeholder="Ex: Medley, Eurofarma. Cadastre marcas em Configurações."
+                    />
+                  )}
                   <p id="brand-help" className="text-xs text-gray-500 mt-1">
-                    Nome do fabricante
+                    Cadastre marcas em Admin &gt; Configurações &gt; Marcas
                   </p>
                 </div>
                 <div>

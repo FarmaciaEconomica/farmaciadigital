@@ -14,8 +14,11 @@ export default function DeliveryCalculator({ onCalculate, subtotal = 0 }) {
   const [isCalculating, setIsCalculating] = useState(false);
   const [selectedOption, setSelectedOption] = useState('motoboy');
 
-  // Obter endereço da farmácia das configurações
   const pharmacyAddress = theme.address || null;
+  const deliveryMode = theme.deliveryMode || 'per_neighborhood';
+  const neighborhoods = theme.deliveryNeighborhoods || [];
+  const pricePerKm = theme.deliveryPricePerKm ?? 2.5;
+  const distanceUnit = theme.deliveryDistanceUnit || 'km';
 
   const handleAddressChange = (newAddress) => {
     setAddress(newAddress);
@@ -38,103 +41,74 @@ export default function DeliveryCalculator({ onCalculate, subtotal = 0 }) {
       let estimatedTime = '';
       let errorMessage = '';
 
-      // Se tiver endereço da farmácia, calcular distância real
-      if (pharmacyAddress && pharmacyAddress.street && pharmacyAddress.city) {
-        try {
-          // Obter coordenadas do endereço do cliente
-          const clientCoords = await getCoordinates({
-            street: deliveryAddress.street,
-            number: deliveryAddress.number,
-            neighborhood: deliveryAddress.neighborhood,
-            city: deliveryAddress.city,
-            state: deliveryAddress.state
-          });
+      const freeDeliveryThreshold = theme.freeDeliveryAbove || 150;
+      const isFreeBySubtotal = subtotal >= freeDeliveryThreshold;
 
-          // Obter coordenadas da farmácia
-          const pharmacyCoords = await getCoordinates({
-            street: pharmacyAddress.street,
-            number: pharmacyAddress.number || '',
-            neighborhood: pharmacyAddress.neighborhood || '',
-            city: pharmacyAddress.city || '',
-            state: pharmacyAddress.state || ''
-          });
-
-          // Calcular distância
-          distance = calculateDistance(
-            pharmacyCoords.lat,
-            pharmacyCoords.lon,
-            clientCoords.lat,
-            clientCoords.lon
-          );
-
-          // Se a distância for muito grande ou inválida, usar fallback
-          if (distance > 100 || distance <= 0) {
-            throw new Error('Distância inválida');
-          }
-
-          // Calcular frete baseado na distância
-          const freeDeliveryThreshold = theme.freeDeliveryAbove || 150;
-          const feeConfig = {
-            baseFee: parseFloat(theme.deliveryFeeBase) || 5.00,
-            pricePerKm: 2.50,
-            minFee: 8.00,
-            maxFee: 50.00,
-            freeDeliveryAbove: freeDeliveryThreshold
-          };
-
-          const feeResult = calculateDeliveryFee(distance, feeConfig);
-          deliveryFee = subtotal >= freeDeliveryThreshold ? 0 : feeResult.fee;
-          estimatedTime = feeResult.estimatedTime;
-        } catch (error) {
-          console.error('Erro ao calcular distância:', error);
-          errorMessage = 'Usando cálculo aproximado de frete';
-          
-          // Fallback: calcular frete baseado no CEP (primeiro dígito)
-          const cepFirstDigit = parseInt(deliveryAddress.zipcode?.replace(/\D/g, '')[0] || '5');
-          if (cepFirstDigit <= 1) {
-            deliveryFee = 8.90;
-            estimatedTime = '30-45 min';
-          } else if (cepFirstDigit <= 3) {
-            deliveryFee = 12.90;
-            estimatedTime = '45-60 min';
-          } else if (cepFirstDigit <= 5) {
-            deliveryFee = 15.90;
-            estimatedTime = '1-2 horas';
-          } else {
-            deliveryFee = 19.90;
-            estimatedTime = '2-3 horas';
-          }
+      if (deliveryMode === 'per_neighborhood') {
+        const neighborhoodName = (deliveryAddress.neighborhood || '').trim().toLowerCase();
+        const found = neighborhoods.find(
+          b => (b.name || '').trim().toLowerCase() === neighborhoodName
+        );
+        if (found) {
+          deliveryFee = found.fee ?? 0;
+          estimatedTime = found.time || '30-60 min';
+        } else if (neighborhoods.length > 0) {
+          toast.warning('Bairro não encontrado na nossa lista. Confira em "Onde entregamos".');
+          deliveryFee = 0;
+          estimatedTime = '—';
+        } else {
+          deliveryFee = parseFloat(theme.deliveryFeeBase) || 8.90;
+          estimatedTime = '30-60 min';
         }
       } else {
-        // Fallback se não tiver endereço da farmácia configurado
-        toast.warning('Endereço da farmácia não configurado. Usando cálculo aproximado.');
-        const cepFirstDigit = parseInt(deliveryAddress.zipcode?.replace(/\D/g, '')[0] || '5');
-        if (cepFirstDigit <= 1) {
-          deliveryFee = 8.90;
-          estimatedTime = '30-45 min';
-        } else if (cepFirstDigit <= 3) {
-          deliveryFee = 12.90;
-          estimatedTime = '45-60 min';
-        } else if (cepFirstDigit <= 5) {
+        if (pharmacyAddress && pharmacyAddress.street && pharmacyAddress.city) {
+          try {
+            const clientCoords = await getCoordinates({
+              street: deliveryAddress.street,
+              number: deliveryAddress.number,
+              neighborhood: deliveryAddress.neighborhood,
+              city: deliveryAddress.city,
+              state: deliveryAddress.state
+            });
+            const pharmacyCoords = await getCoordinates({
+              street: pharmacyAddress.street,
+              number: pharmacyAddress.number || '',
+              neighborhood: pharmacyAddress.neighborhood || '',
+              city: pharmacyAddress.city || '',
+              state: pharmacyAddress.state || ''
+            });
+            distance = calculateDistance(
+              pharmacyCoords.lat, pharmacyCoords.lon,
+              clientCoords.lat, clientCoords.lon
+            );
+            if (distance > 100 || distance <= 0) throw new Error('Distância inválida');
+            const distValue = distanceUnit === 'm' ? distance * 1000 : distance;
+            deliveryFee = Math.max(0, distValue * pricePerKm);
+            estimatedTime = distance <= 5 ? '30-45 min' : distance <= 15 ? '1-2 horas' : '2-3 horas';
+          } catch (err) {
+            console.error('Erro ao calcular distância:', err);
+            errorMessage = 'Usando valor aproximado';
+            deliveryFee = 15.90;
+            estimatedTime = '1-2 horas';
+          }
+        } else {
+          toast.warning('Endereço da farmácia não configurado. Configure em Admin para frete por km.');
           deliveryFee = 15.90;
           estimatedTime = '1-2 horas';
-        } else {
-          deliveryFee = 19.90;
-          estimatedTime = '2-3 horas';
         }
       }
 
-      const freeDeliveryThreshold = theme.freeDeliveryAbove || 150;
-      const isFreeDelivery = subtotal >= freeDeliveryThreshold;
+      if (isFreeBySubtotal) deliveryFee = 0;
 
+      const freeDeliveryThreshold = theme.freeDeliveryAbove || 150;
       const deliveryResult = {
         address: deliveryAddress,
         distance,
-        fee: isFreeDelivery ? 0 : deliveryFee,
+        fee: deliveryFee,
         originalFee: deliveryFee,
         estimatedTime,
         available: true,
-        isFreeDelivery,
+        isFreeDelivery: isFreeBySubtotal,
         freeDeliveryThreshold,
         missingForFree: Math.max(0, freeDeliveryThreshold - subtotal),
         calculated: true, // Marcar como calculado

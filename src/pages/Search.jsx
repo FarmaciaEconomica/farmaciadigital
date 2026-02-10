@@ -33,7 +33,7 @@ import {
 import { toast } from 'sonner';
 
 import SearchBar from '@/components/pharmacy/SearchBar';
-import ProductGrid from '@/components/pharmacy/ProductGrid';
+import ProductGrid, { getMobileGridCols, setMobileGridCols } from '@/components/pharmacy/ProductGrid';
 
 const categories = [
   { value: 'medicamentos', label: 'Medicamentos' },
@@ -67,10 +67,16 @@ export default function Search() {
   const [sortBy, setSortBy] = useState('relevance');
   const [viewMode, setViewMode] = useState('grid');
   const [favorites, setFavorites] = useState([]);
+  const [mobileCols, setMobileCols] = useState(getMobileGridCols);
 
   useEffect(() => {
     const saved = localStorage.getItem('pharmacyFavorites');
     if (saved) setFavorites(JSON.parse(saved));
+  }, []);
+  useEffect(() => {
+    const handler = () => setMobileCols(getMobileGridCols());
+    window.addEventListener('mobileGridColsChange', handler);
+    return () => window.removeEventListener('mobileGridColsChange', handler);
   }, []);
 
   const { data: allProducts = [], isLoading } = useQuery({
@@ -378,6 +384,22 @@ export default function Search() {
                 className={`p-2 rounded ${viewMode === 'list' ? 'bg-emerald-100 text-emerald-600' : 'text-gray-400'}`}
               >
                 <List className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex md:hidden border rounded-lg p-1 gap-0.5">
+              <button
+                onClick={() => setMobileGridCols(1)}
+                className={`p-2 rounded text-sm ${mobileCols === 1 ? 'bg-emerald-100 text-emerald-600' : 'text-gray-400'}`}
+                title="1 coluna"
+              >
+                1
+              </button>
+              <button
+                onClick={() => setMobileGridCols(2)}
+                className={`p-2 rounded text-sm ${mobileCols === 2 ? 'bg-emerald-100 text-emerald-600' : 'text-gray-400'}`}
+                title="2 colunas"
+              >
+                2
               </button>
             </div>
           </div>
