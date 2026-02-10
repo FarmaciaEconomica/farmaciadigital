@@ -100,7 +100,6 @@ export default function DeliveryCalculator({ onCalculate, subtotal = 0 }) {
 
       if (isFreeBySubtotal) deliveryFee = 0;
 
-      const freeDeliveryThreshold = theme.freeDeliveryAbove || 150;
       const deliveryResult = {
         address: deliveryAddress,
         distance,
@@ -117,7 +116,7 @@ export default function DeliveryCalculator({ onCalculate, subtotal = 0 }) {
           { 
             type: 'motoboy', 
             name: 'Motoboy', 
-            fee: isFreeDelivery ? 0 : deliveryFee, 
+            fee: isFreeBySubtotal ? 0 : deliveryFee, 
             time: estimatedTime,
             distance: distance > 0 ? `${distance} km` : null
           },
