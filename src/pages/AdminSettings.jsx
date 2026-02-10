@@ -113,8 +113,12 @@ export default function AdminSettings() {
     delivery_mode: 'per_neighborhood', // 'per_neighborhood' | 'per_km'
     delivery_neighborhoods: [],
     delivery_price_per_km: 2.5,
+<<<<<<< HEAD
     delivery_distance_unit: 'km', // 'km' | 'm'
     product_brands: []
+=======
+    delivery_distance_unit: 'km' // 'km' | 'm'
+>>>>>>> 86a053ffafc7c8666cff94e7e36847866a9532e9
   });
 
   const { data: settings } = useQuery({
@@ -137,7 +141,10 @@ export default function AdminSettings() {
           delivery_neighborhoods: settingsData.delivery_neighborhoods || [],
           delivery_price_per_km: settingsData.delivery_price_per_km ?? 2.5,
           delivery_distance_unit: settingsData.delivery_distance_unit || 'km',
+<<<<<<< HEAD
           product_brands: settingsData.product_brands || [],
+=======
+>>>>>>> 86a053ffafc7c8666cff94e7e36847866a9532e9
           // Garantir que theme seja inicializado corretamente
           theme: settingsData.theme || {
             colors: {
@@ -269,15 +276,20 @@ export default function AdminSettings() {
     },
     onSuccess: (data) => {
       // Invalidar todas as queries relacionadas para atualizar imediatamente
-      queryClient.invalidateQueries(['pharmacySettings']);
+      queryClient.invalidateQueries({ queryKey: ['pharmacySettings'] });
       queryClient.setQueryData(['pharmacySettings'], [data]);
       
-      // Forçar atualização do tema
-      queryClient.refetchQueries(['pharmacySettings']);
+      // Forçar atualização do tema e refetch
+      queryClient.refetchQueries({ queryKey: ['pharmacySettings'] });
+      
+      // Forçar atualização do cache do React Query
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['pharmacySettings'] });
+      }, 100);
       
       setHasUnsavedChanges(false);
       setLastSaved(new Date());
-      toast.success('✅ Configurações salvas com sucesso!');
+      toast.success('✅ Configurações salvas com sucesso! As alterações já estão disponíveis no site.');
     },
     onError: (error) => {
       console.error('Erro ao salvar configurações:', error);
@@ -300,7 +312,10 @@ export default function AdminSettings() {
       delivery_neighborhoods: formData.delivery_neighborhoods || [],
       delivery_price_per_km: parseFloat(formData.delivery_price_per_km) ?? 2.5,
       delivery_distance_unit: formData.delivery_distance_unit || 'km',
+<<<<<<< HEAD
       product_brands: formData.product_brands || [],
+=======
+>>>>>>> 86a053ffafc7c8666cff94e7e36847866a9532e9
       // Garantir que todas as cores sejam salvas
       primary_color: formData.primary_color || '#059669',
       secondary_color: formData.secondary_color || '#0d9488',
@@ -823,7 +838,10 @@ export default function AdminSettings() {
       delivery_neighborhoods: formData.delivery_neighborhoods || [],
       delivery_price_per_km: parseFloat(formData.delivery_price_per_km) ?? 2.5,
       delivery_distance_unit: formData.delivery_distance_unit || 'km',
+<<<<<<< HEAD
       product_brands: formData.product_brands || [],
+=======
+>>>>>>> 86a053ffafc7c8666cff94e7e36847866a9532e9
       // Garantir que todas as cores sejam salvas diretamente
       primary_color: formData.primary_color || '#059669',
       secondary_color: formData.secondary_color || '#0d9488',
@@ -1597,6 +1615,106 @@ export default function AdminSettings() {
                       <span>Por distância (km/m)</span>
                     </label>
                   </div>
+<<<<<<< HEAD
+=======
+                </div>
+                {(formData.delivery_mode || 'per_neighborhood') === 'per_km' && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Valor por unidade de distância (R$)</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={formData.delivery_price_per_km ?? 2.5}
+                        onChange={(e) => setFormData(prev => ({ ...prev, delivery_price_per_km: parseFloat(e.target.value) ?? 2.5 }))}
+                        placeholder="2.50"
+                      />
+                    </div>
+                    <div>
+                      <Label>Unidade</Label>
+                      <Select
+                        value={formData.delivery_distance_unit || 'km'}
+                        onValueChange={(v) => setFormData(prev => ({ ...prev, delivery_distance_unit: v }))}
+                      >
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="km">Por km</SelectItem>
+                          <SelectItem value="m">Por metro</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
+                {(formData.delivery_mode || 'per_neighborhood') === 'per_neighborhood' && (
+                  <div>
+                    <Label>Bairros atendidos (nome, taxa R$, tempo ex.: 30-40min)</Label>
+                    <div className="space-y-2 mt-2">
+                      {(formData.delivery_neighborhoods || []).map((b, i) => (
+                        <div key={i} className="flex gap-2 items-center flex-wrap">
+                          <Input
+                            placeholder="Bairro"
+                            value={b.name || ''}
+                            onChange={(e) => {
+                              const arr = [...(formData.delivery_neighborhoods || [])];
+                              arr[i] = { ...arr[i], name: e.target.value };
+                              setFormData(prev => ({ ...prev, delivery_neighborhoods: arr }));
+                            }}
+                            className="flex-1 min-w-[120px]"
+                          />
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="Taxa R$"
+                            value={b.fee ?? ''}
+                            onChange={(e) => {
+                              const arr = [...(formData.delivery_neighborhoods || [])];
+                              arr[i] = { ...arr[i], fee: parseFloat(e.target.value) || 0 };
+                              setFormData(prev => ({ ...prev, delivery_neighborhoods: arr }));
+                            }}
+                            className="w-24"
+                          />
+                          <Input
+                            placeholder="Ex: 30-40min"
+                            value={b.time || ''}
+                            onChange={(e) => {
+                              const arr = [...(formData.delivery_neighborhoods || [])];
+                              arr[i] = { ...arr[i], time: e.target.value };
+                              setFormData(prev => ({ ...prev, delivery_neighborhoods: arr }));
+                            }}
+                            className="w-28"
+                          />
+                          <Button type="button" variant="outline" size="icon" onClick={() => setFormData(prev => ({ ...prev, delivery_neighborhoods: (prev.delivery_neighborhoods || []).filter((_, j) => j !== i) }))}>
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ))}
+                      <Button type="button" variant="outline" size="sm" onClick={() => setFormData(prev => ({ ...prev, delivery_neighborhoods: [...(prev.delivery_neighborhoods || []), { name: '', fee: 0, time: '' }] }))}>
+                        <Plus className="w-4 h-4 mr-2" />
+                        Adicionar bairro
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-4 pt-2">
+                  <div>
+                    <Label htmlFor="free-delivery">Frete Grátis Acima de (R$)</Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">R$</span>
+                      <Input
+                        id="free-delivery"
+                        type="text"
+                        value={formData.free_delivery_above !== undefined && formData.free_delivery_above !== null ? formatCurrency(formData.free_delivery_above) : ''}
+                        onChange={(e) => {
+                          const unformatted = unformatCurrency(e.target.value);
+                          setFormData(prev => ({ ...prev, free_delivery_above: unformatted }));
+                        }}
+                        placeholder="150,00"
+                        className="pl-8"
+                      />
+                    </div>
+                  </div>
+>>>>>>> 86a053ffafc7c8666cff94e7e36847866a9532e9
                 </div>
                 {(formData.delivery_mode || 'per_neighborhood') === 'per_km' && (
                   <div className="grid grid-cols-2 gap-4">

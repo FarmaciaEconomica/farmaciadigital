@@ -143,9 +143,8 @@ export default function Layout({ children, currentPageName }) {
     return <>{children}</>;
   }
 
+  // ThemeProvider agora está no App.jsx, não precisa duplicar aqui
   return (
-    <ThemeProvider>
-      <LayoutContent children={children} currentPageName={currentPageName} />
-    </ThemeProvider>
+    <LayoutContent children={children} currentPageName={currentPageName} />
   );
 }
