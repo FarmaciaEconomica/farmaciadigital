@@ -113,8 +113,7 @@ export default function AdminSettings() {
     delivery_mode: 'per_neighborhood', // 'per_neighborhood' | 'per_km'
     delivery_neighborhoods: [],
     delivery_price_per_km: 2.5,
-    delivery_distance_unit: 'km', // 'km' | 'm'
-    product_brands: []
+    delivery_distance_unit: 'km' // 'km' | 'm'
   });
 
   const { data: settings } = useQuery({
@@ -137,7 +136,6 @@ export default function AdminSettings() {
           delivery_neighborhoods: settingsData.delivery_neighborhoods || [],
           delivery_price_per_km: settingsData.delivery_price_per_km ?? 2.5,
           delivery_distance_unit: settingsData.delivery_distance_unit || 'km',
-          product_brands: settingsData.product_brands || [],
           // Garantir que theme seja inicializado corretamente
           theme: settingsData.theme || {
             colors: {
@@ -269,15 +267,20 @@ export default function AdminSettings() {
     },
     onSuccess: (data) => {
       // Invalidar todas as queries relacionadas para atualizar imediatamente
-      queryClient.invalidateQueries(['pharmacySettings']);
+      queryClient.invalidateQueries({ queryKey: ['pharmacySettings'] });
       queryClient.setQueryData(['pharmacySettings'], [data]);
       
-      // Forçar atualização do tema
-      queryClient.refetchQueries(['pharmacySettings']);
+      // Forçar atualização do tema e refetch
+      queryClient.refetchQueries({ queryKey: ['pharmacySettings'] });
+      
+      // Forçar atualização do cache do React Query
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['pharmacySettings'] });
+      }, 100);
       
       setHasUnsavedChanges(false);
       setLastSaved(new Date());
-      toast.success('✅ Configurações salvas com sucesso!');
+      toast.success('✅ Configurações salvas com sucesso! As alterações já estão disponíveis no site.');
     },
     onError: (error) => {
       console.error('Erro ao salvar configurações:', error);
@@ -300,7 +303,6 @@ export default function AdminSettings() {
       delivery_neighborhoods: formData.delivery_neighborhoods || [],
       delivery_price_per_km: parseFloat(formData.delivery_price_per_km) ?? 2.5,
       delivery_distance_unit: formData.delivery_distance_unit || 'km',
-      product_brands: formData.product_brands || [],
       // Garantir que todas as cores sejam salvas
       primary_color: formData.primary_color || '#059669',
       secondary_color: formData.secondary_color || '#0d9488',
@@ -823,7 +825,6 @@ export default function AdminSettings() {
       delivery_neighborhoods: formData.delivery_neighborhoods || [],
       delivery_price_per_km: parseFloat(formData.delivery_price_per_km) ?? 2.5,
       delivery_distance_unit: formData.delivery_distance_unit || 'km',
-      product_brands: formData.product_brands || [],
       // Garantir que todas as cores sejam salvas diretamente
       primary_color: formData.primary_color || '#059669',
       secondary_color: formData.secondary_color || '#0d9488',
@@ -1695,36 +1696,6 @@ export default function AdminSettings() {
                     </div>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-white/60 backdrop-blur-sm border-gray-200/50">
-              <CardHeader>
-                <CardTitle>Marcas de produtos</CardTitle>
-                <CardDescription>Cadastre as marcas. Ao adicionar um produto, a marca aparecerá como lista para escolher.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {(formData.product_brands || []).map((brand, i) => (
-                  <div key={i} className="flex gap-2 items-center">
-                    <Input
-                      value={brand}
-                      onChange={(e) => {
-                        const arr = [...(formData.product_brands || [])];
-                        arr[i] = e.target.value;
-                        setFormData(prev => ({ ...prev, product_brands: arr }));
-                      }}
-                      placeholder="Nome da marca"
-                      className="max-w-xs"
-                    />
-                    <Button type="button" variant="outline" size="icon" onClick={() => setFormData(prev => ({ ...prev, product_brands: (prev.product_brands || []).filter((_, j) => j !== i) }))}>
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                ))}
-                <Button type="button" variant="outline" size="sm" onClick={() => setFormData(prev => ({ ...prev, product_brands: [...(prev.product_brands || []), ''] }))}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Adicionar marca
-                </Button>
               </CardContent>
             </Card>
 

@@ -105,6 +105,7 @@ export default function AdminProducts() {
   const [stockFilter, setStockFilter] = useState('all'); // 'all', 'in_stock', 'low_stock', 'out_of_stock'
   const [sortBy, setSortBy] = useState('name_asc'); // 'name_asc', 'name_desc', 'price_asc', 'price_desc', 'stock_asc', 'stock_desc', 'created_desc'
   const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
+  const [isBrandManagerOpen, setIsBrandManagerOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedProducts, setSelectedProducts] = useState([]);
@@ -125,6 +126,9 @@ export default function AdminProducts() {
   const [categoriesToAdd, setCategoriesToAdd] = useState([]); // Categorias a serem adicionadas
   const [categoriesToRemove, setCategoriesToRemove] = useState([]); // Categorias a serem removidas
   const [isSavingCategories, setIsSavingCategories] = useState(false);
+  const [tempBrands, setTempBrands] = useState([]); // Estado temporário para o diálogo de marcas
+  const [newBrand, setNewBrand] = useState('');
+  const [isSavingBrands, setIsSavingBrands] = useState(false);
   const [fetchingImageByBarcode, setFetchingImageByBarcode] = useState(false);
   const [bulkData, setBulkData] = useState({
     status: 'active',
@@ -1406,6 +1410,14 @@ export default function AdminProducts() {
             <Tag className="w-4 h-4 mr-2" />
             Categorias
           </Button>
+          <Button 
+            variant="outline" 
+            onClick={handleOpenBrandManager}
+            title="Gerenciar marcas"
+          >
+            <Package className="w-4 h-4 mr-2" />
+            Marcas
+          </Button>
 
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-48">
@@ -1822,11 +1834,11 @@ export default function AdminProducts() {
                       id="product-brand"
                       value={formData.brand}
                       onChange={(e) => setFormData(prev => ({ ...prev, brand: e.target.value }))}
-                      placeholder="Ex: Medley, Eurofarma. Cadastre marcas em Configurações."
+                      placeholder="Ex: Medley, Eurofarma. Use o botão 'Marcas' para cadastrar."
                     />
                   )}
                   <p id="brand-help" className="text-xs text-gray-500 mt-1">
-                    Cadastre marcas em Admin &gt; Configurações &gt; Marcas
+                    Cadastre marcas usando o botão "Marcas" na barra de filtros
                   </p>
                 </div>
                 <div>
@@ -2622,6 +2634,100 @@ export default function AdminProducts() {
               className="bg-emerald-600 hover:bg-emerald-700"
             >
               {isSavingCategories ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Salvando...
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4 mr-2" />
+                  Salvar
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de Gerenciamento de Marcas */}
+      <Dialog open={isBrandManagerOpen} onOpenChange={(open) => {
+        if (!open) {
+          setNewBrand('');
+        }
+        setIsBrandManagerOpen(open);
+      }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Gerenciar Marcas</DialogTitle>
+            <DialogDescription>
+              Adicione ou remova marcas. Ao adicionar um produto, as marcas aparecerão como lista para escolher.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {/* Adicionar nova marca */}
+            <div className="flex gap-2">
+              <Input
+                placeholder="Nome da marca"
+                value={newBrand}
+                onChange={(e) => setNewBrand(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && newBrand.trim()) {
+                    handleAddBrand();
+                  }
+                }}
+              />
+              <Button 
+                onClick={handleAddBrand}
+                disabled={!newBrand.trim()}
+                className="bg-emerald-600 hover:bg-emerald-700"
+              >
+                <Plus className="w-4 h-4" />
+              </Button>
+            </div>
+
+            {/* Lista de marcas */}
+            <div className="border rounded-lg max-h-96 overflow-y-auto">
+              {tempBrands.length === 0 ? (
+                <div className="p-8 text-center text-gray-500">
+                  <p>Nenhuma marca cadastrada.</p>
+                  <p className="text-sm mt-2">Adicione uma marca acima.</p>
+                </div>
+              ) : (
+                tempBrands.map((brand, index) => (
+                  <div 
+                    key={index} 
+                    className="flex items-center justify-between p-3 border-b last:border-b-0 hover:bg-gray-50"
+                  >
+                    <span className="font-medium">{brand}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleRemoveBrand(index)}
+                      className="text-red-600 hover:text-red-700"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setIsBrandManagerOpen(false)}
+              disabled={isSavingBrands}
+            >
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleSaveBrands}
+              disabled={isSavingBrands}
+              className="bg-emerald-600 hover:bg-emerald-700"
+            >
+              {isSavingBrands ? (
                 <>
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                   Salvando...

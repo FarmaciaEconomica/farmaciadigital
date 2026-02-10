@@ -205,12 +205,6 @@ export default function Header({ cartItemsCount = 0 }) {
                           <User className="w-5 h-5" />
                           Minha Conta
                         </Link>
-                        {isAdmin && (
-                          <Link to={createPageUrl('AdminDashboard')} onClick={() => setIsOpen(false)} className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-100 text-slate-700 font-medium">
-                            <LayoutDashboard className="w-5 h-5" />
-                            Painel Admin
-                          </Link>
-                        )}
                         <button type="button" onClick={() => { logout(); setIsOpen(false); navigate('/'); }} className="flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-red-50 text-red-600 font-medium w-full text-left">
                           <LogOut className="w-5 h-5" />
                           Sair
@@ -349,14 +343,6 @@ export default function Header({ cartItemsCount = 0 }) {
                 </>
               ) : (
                 <>
-                  {isAdmin && (
-                    <Link to={createPageUrl('AdminDashboard')}>
-                      <Button variant="outline" size="sm" className="hidden md:inline-flex text-gray-700 border-gray-300">
-                        <LayoutDashboard className="w-4 h-4 mr-1" />
-                        Admin
-                      </Button>
-                    </Link>
-                  )}
                   <Link to={createPageUrl('CustomerArea')}>
                     <Button variant="ghost" size="icon" className="hover:bg-gray-100 rounded-full" title="Minha conta">
                       <User className="w-5 h-5 text-gray-700" />
