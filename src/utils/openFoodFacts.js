@@ -20,26 +20,51 @@ export async function fetchProductByBarcode(barcode) {
     return null;
   }
 
-  for (const api of APIS) {
-    try {
-      const res = await fetch(`${api.url}/${cleanBarcode}.json`);
-      const data = await res.json();
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  let lastError = null;
 
-      if (data.status === 1 && data.product) {
-        const p = data.product;
-        const imageUrl = p.image_url || p.image_front_url || p.image_small_url || null;
-        if (!imageUrl) continue;
+  try {
+    for (const api of APIS) {
+      try {
+        const res = await fetch(`${api.url}/${cleanBarcode}.json`, {
+          signal: controller.signal,
+          mode: 'cors',
+          headers: { Accept: 'application/json' }
+        });
 
-        return {
-          image_url: imageUrl,
-          product_name: p.product_name || p.product_name_fr || p.product_name_en || null,
-          brands: p.brands || null,
-          source: api.name
-        };
+        if (!res.ok) continue;
+
+        const data = await res.json();
+
+        if (data.status === 1 && data.product) {
+          clearTimeout(timeoutId);
+          const p = data.product;
+          const imageUrl = p.image_url || p.image_front_url || p.image_small_url ||
+            p.image_front_small_url || p.image_thumb_url || null;
+          if (!imageUrl) continue;
+
+          return {
+            image_url: imageUrl,
+            product_name: p.product_name || p.product_name_fr || p.product_name_en || null,
+            brands: p.brands || null,
+            source: api.name
+          };
+        }
+      } catch (err) {
+        lastError = err;
+        continue;
       }
-    } catch {
-      continue;
     }
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
+  if (lastError?.name === 'AbortError') {
+    throw new Error('Tempo esgotado. Verifique sua conexão e tente novamente.');
+  }
+  if (lastError) {
+    throw lastError;
   }
   return null;
 }
