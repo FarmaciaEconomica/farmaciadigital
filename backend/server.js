@@ -2,6 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import pg from 'pg';
+import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
 
 const { Pool } = pg;
 
@@ -9,6 +11,7 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 10000;
+const JWT_SECRET = process.env.JWT_SECRET || 'farmacia-digital-secret-change-in-production';
 
 // Pool de conexão PostgreSQL
 let pool = null;
@@ -28,6 +31,69 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json());
+
+// ========== Tabela users e funções de auth ==========
+async function ensureUsersTable() {
+  if (!pool) return;
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id VARCHAR(100) PRIMARY KEY,
+      email VARCHAR(255) UNIQUE NOT NULL,
+      password_hash VARCHAR(255) NOT NULL,
+      full_name VARCHAR(255),
+      role VARCHAR(50) DEFAULT 'customer',
+      phone VARCHAR(50),
+      created_date TIMESTAMP DEFAULT NOW(),
+      updated_date TIMESTAMP DEFAULT NOW()
+    )
+  `);
+}
+
+async function findUserByEmail(email) {
+  if (!pool) return null;
+  const r = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1)', [email]);
+  return r.rows[0] || null;
+}
+
+async function findUserById(id) {
+  if (!pool) return null;
+  const r = await pool.query('SELECT id, email, full_name, role, phone, created_date FROM users WHERE id = $1', [id]);
+  return r.rows[0] || null;
+}
+
+async function createUser({ email, password, full_name, role = 'customer', phone }) {
+  if (!pool) throw new Error('Database not configured');
+  const id = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const password_hash = await bcrypt.hash(password, 10);
+  await pool.query(
+    'INSERT INTO users (id, email, password_hash, full_name, role, phone) VALUES ($1, $2, $3, $4, $5, $6)',
+    [id, email.toLowerCase().trim(), password_hash, full_name || null, role, phone || null]
+  );
+  return findUserById(id);
+}
+
+function createToken(user) {
+  return jwt.sign(
+    { id: user.id, email: user.email, role: user.role },
+    JWT_SECRET,
+    { expiresIn: '7d' }
+  );
+}
+
+function authMiddleware(req, res, next) {
+  const authHeader = req.headers.authorization;
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  if (!token) {
+    return res.status(401).json({ error: 'Token não informado' });
+  }
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    req.user = payload;
+    next();
+  } catch (e) {
+    return res.status(401).json({ error: 'Token inválido ou expirado' });
+  }
+}
 
 // ========== Funções de persistência PostgreSQL ==========
 
@@ -313,8 +379,93 @@ app.get('/api/categories', async (req, res) => {
 });
 
 // ========== Rotas de autenticação ==========
-app.post('/api/auth/login', (req, res) => {
-  res.json({ success: true, user: req.body });
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    if (!usePostgres) {
+      return res.status(503).json({ error: 'Cadastro indisponível. Configure DATABASE_URL.' });
+    }
+    const { email, password, full_name, phone } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email e senha são obrigatórios' });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Senha deve ter no mínimo 6 caracteres' });
+    }
+    const existing = await findUserByEmail(email);
+    if (existing) {
+      return res.status(400).json({ error: 'Email já cadastrado' });
+    }
+    const user = await createUser({
+      email,
+      password,
+      full_name: full_name || null,
+      role: 'customer',
+      phone: phone || null
+    });
+    const token = createToken(user);
+    res.status(201).json({
+      user: {
+        id: user.id,
+        email: user.email,
+        full_name: user.full_name,
+        role: user.role,
+        phone: user.phone
+      },
+      token
+    });
+  } catch (error) {
+    console.error('Erro no cadastro:', error);
+    res.status(500).json({ error: 'Erro ao cadastrar' });
+  }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    if (!usePostgres) {
+      return res.status(503).json({ error: 'Login indisponível. Configure DATABASE_URL.' });
+    }
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email e senha são obrigatórios' });
+    }
+    const userRow = await findUserByEmail(email);
+    if (!userRow) {
+      return res.status(401).json({ error: 'Email ou senha incorretos' });
+    }
+    const r = await pool.query('SELECT password_hash FROM users WHERE id = $1', [userRow.id]);
+    const match = await bcrypt.compare(password, r.rows[0].password_hash);
+    if (!match) {
+      return res.status(401).json({ error: 'Email ou senha incorretos' });
+    }
+    const user = await findUserById(userRow.id);
+    const token = createToken(user);
+    res.json({
+      user: {
+        id: user.id,
+        email: user.email,
+        full_name: user.full_name,
+        role: user.role,
+        phone: user.phone
+      },
+      token
+    });
+  } catch (error) {
+    console.error('Erro no login:', error);
+    res.status(500).json({ error: 'Erro ao fazer login' });
+  }
+});
+
+app.get('/api/auth/me', authMiddleware, async (req, res) => {
+  try {
+    const user = await findUserById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ error: 'Usuário não encontrado' });
+    }
+    res.json(user);
+  } catch (error) {
+    console.error('Erro ao buscar usuário:', error);
+    res.status(500).json({ error: 'Erro ao buscar usuário' });
+  }
 });
 
 // ========== Encerrar conexão ao fechar ==========
@@ -333,6 +484,17 @@ app.listen(PORT, async () => {
   
   if (pool) {
     try {
+      await ensureUsersTable();
+      const userCount = await pool.query('SELECT COUNT(*) as c FROM users');
+      if (parseInt(userCount.rows[0]?.c || 0, 10) === 0 && process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD) {
+        await createUser({
+          email: process.env.ADMIN_EMAIL,
+          password: process.env.ADMIN_PASSWORD,
+          full_name: 'Administrador',
+          role: 'admin'
+        });
+        console.log('✅ Primeiro usuário admin criado:', process.env.ADMIN_EMAIL);
+      }
       const result = await pool.query('SELECT COUNT(*) as count FROM products');
       productsCount = parseInt(result.rows[0]?.count || 0, 10);
       dbStatus = 'PostgreSQL conectado';

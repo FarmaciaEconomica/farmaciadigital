@@ -97,6 +97,22 @@ export default function Footer() {
               </li>
               <li>
                 <Link 
+                  to="/login" 
+                  className="hover:text-emerald-400 transition-colors flex items-center gap-2"
+                >
+                  → Entrar
+                </Link>
+              </li>
+              <li>
+                <Link 
+                  to="/cadastro" 
+                  className="hover:text-emerald-400 transition-colors flex items-center gap-2"
+                >
+                  → Cadastrar
+                </Link>
+              </li>
+              <li>
+                <Link 
                   to={createPageUrl('CustomerArea')} 
                   className="hover:text-emerald-400 transition-colors flex items-center gap-2"
                 >
