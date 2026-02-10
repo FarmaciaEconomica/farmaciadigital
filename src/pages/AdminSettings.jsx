@@ -106,8 +106,15 @@ export default function AdminSettings() {
     design_style: 'modern',
     banners: [],
     order_mode: 'app', // 'app' ou 'whatsapp'
-    installments: 3, // Número de parcelas padrão
-    installmentHasInterest: false // Se as parcelas têm juros
+    installments: 3,
+    installmentHasInterest: false,
+    installment_min_value: 50,
+    installment_interest_rate: 0,
+    delivery_mode: 'per_neighborhood', // 'per_neighborhood' | 'per_km'
+    delivery_neighborhoods: [],
+    delivery_price_per_km: 2.5,
+    delivery_distance_unit: 'km', // 'km' | 'm'
+    product_brands: []
   });
 
   const { data: settings } = useQuery({
@@ -124,6 +131,13 @@ export default function AdminSettings() {
           order_mode: settingsData.order_mode || 'app',
           installments: settingsData.installments || 3,
           installmentHasInterest: settingsData.installmentHasInterest || false,
+          installment_min_value: settingsData.installment_min_value ?? 50,
+          installment_interest_rate: settingsData.installment_interest_rate ?? 0,
+          delivery_mode: settingsData.delivery_mode || 'per_neighborhood',
+          delivery_neighborhoods: settingsData.delivery_neighborhoods || [],
+          delivery_price_per_km: settingsData.delivery_price_per_km ?? 2.5,
+          delivery_distance_unit: settingsData.delivery_distance_unit || 'km',
+          product_brands: settingsData.product_brands || [],
           // Garantir que theme seja inicializado corretamente
           theme: settingsData.theme || {
             colors: {
@@ -280,6 +294,13 @@ export default function AdminSettings() {
       free_delivery_above: parseFloat(formData.free_delivery_above) || 0,
       installments: parseInt(formData.installments) || 3,
       installmentHasInterest: Boolean(formData.installmentHasInterest),
+      installment_min_value: parseFloat(formData.installment_min_value) || 50,
+      installment_interest_rate: parseFloat(formData.installment_interest_rate) || 0,
+      delivery_mode: formData.delivery_mode || 'per_neighborhood',
+      delivery_neighborhoods: formData.delivery_neighborhoods || [],
+      delivery_price_per_km: parseFloat(formData.delivery_price_per_km) ?? 2.5,
+      delivery_distance_unit: formData.delivery_distance_unit || 'km',
+      product_brands: formData.product_brands || [],
       // Garantir que todas as cores sejam salvas
       primary_color: formData.primary_color || '#059669',
       secondary_color: formData.secondary_color || '#0d9488',
@@ -796,6 +817,13 @@ export default function AdminSettings() {
       free_delivery_above: parseFloat(formData.free_delivery_above) || 0,
       installments: parseInt(formData.installments) || 3,
       installmentHasInterest: Boolean(formData.installmentHasInterest),
+      installment_min_value: parseFloat(formData.installment_min_value) || 50,
+      installment_interest_rate: parseFloat(formData.installment_interest_rate) || 0,
+      delivery_mode: formData.delivery_mode || 'per_neighborhood',
+      delivery_neighborhoods: formData.delivery_neighborhoods || [],
+      delivery_price_per_km: parseFloat(formData.delivery_price_per_km) ?? 2.5,
+      delivery_distance_unit: formData.delivery_distance_unit || 'km',
+      product_brands: formData.product_brands || [],
       // Garantir que todas as cores sejam salvas diretamente
       primary_color: formData.primary_color || '#059669',
       secondary_color: formData.secondary_color || '#0d9488',
@@ -1480,13 +1508,13 @@ export default function AdminSettings() {
 
             <Card className="bg-white/60 backdrop-blur-sm border-gray-200/50">
               <CardHeader>
-                <CardTitle>Financeiro</CardTitle>
-                <CardDescription>Configurações de pagamento e parcelamento</CardDescription>
+                <CardTitle>Financeiro e Parcelamento</CardTitle>
+                <CardDescription>Parcelamento aparece apenas no carrinho. Configure em até quantas vezes, valor mínimo e juros.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label>Número de Parcelas</Label>
+                    <Label>Máximo de parcelas</Label>
                     <Input
                       type="number"
                       min="1"
@@ -1495,7 +1523,19 @@ export default function AdminSettings() {
                       onChange={(e) => setFormData(prev => ({ ...prev, installments: parseInt(e.target.value) || 3 }))}
                       placeholder="3"
                     />
-                    <p className="text-xs text-gray-500 mt-1">Número padrão de parcelas para produtos</p>
+                    <p className="text-xs text-gray-500 mt-1">Em até quantas vezes (exibido no carrinho)</p>
+                  </div>
+                  <div>
+                    <Label>Valor mínimo para parcelamento (R$)</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={formData.installment_min_value ?? 50}
+                      onChange={(e) => setFormData(prev => ({ ...prev, installment_min_value: parseFloat(e.target.value) || 0 }))}
+                      placeholder="50"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Carrinho só mostra parcelamento acima deste valor</p>
                   </div>
                   <div>
                     <Label>Parcelas com Juros</Label>
@@ -1508,8 +1548,21 @@ export default function AdminSettings() {
                         {formData.installmentHasInterest ? 'Sim' : 'Não'}
                       </span>
                     </div>
-                    <p className="text-xs text-gray-500 mt-1">Se as parcelas terão juros ou não</p>
                   </div>
+                  {formData.installmentHasInterest && (
+                    <div>
+                      <Label>Taxa de juros ao mês (%)</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        value={formData.installment_interest_rate ?? 0}
+                        onChange={(e) => setFormData(prev => ({ ...prev, installment_interest_rate: parseFloat(e.target.value) || 0 }))}
+                        placeholder="1.99"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Conforme taxas do cartão</p>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -1517,53 +1570,161 @@ export default function AdminSettings() {
             <Card className="bg-white/60 backdrop-blur-sm border-gray-200/50">
               <CardHeader>
                 <CardTitle>Entrega</CardTitle>
-                <CardDescription>Configurações de entrega e frete</CardDescription>
+                <CardDescription>Taxa fixa por bairro cadastrado ou por distância (km/m). Os bairros cadastrados aparecem em &quot;Onde entregamos&quot;.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="delivery-fee">Taxa de Entrega Base</Label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">R$</span>
-                        <Input
-                          id="delivery-fee"
-                          type="text"
-                          value={formData.delivery_fee_base !== undefined && formData.delivery_fee_base !== null ? formatCurrency(formData.delivery_fee_base) : ''}
-                          onChange={(e) => {
-                            const unformatted = unformatCurrency(e.target.value);
-                            setFormData(prev => ({ ...prev, delivery_fee_base: unformatted }));
-                          }}
-                          placeholder="0,00"
-                          className="pl-8"
-                          aria-describedby="delivery-fee-help"
-                        />
-                      </div>
-                      <p id="delivery-fee-help" className="text-xs text-gray-500 mt-1">
-                        Valor fixo cobrado por entrega
-                      </p>
-                    </div>
-                    <div>
-                      <Label htmlFor="free-delivery">Frete Grátis Acima de</Label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">R$</span>
-                        <Input
-                          id="free-delivery"
-                          type="text"
-                          value={formData.free_delivery_above !== undefined && formData.free_delivery_above !== null ? formatCurrency(formData.free_delivery_above) : ''}
-                          onChange={(e) => {
-                            const unformatted = unformatCurrency(e.target.value);
-                            setFormData(prev => ({ ...prev, free_delivery_above: unformatted }));
-                          }}
-                          placeholder="150,00"
-                          className="pl-8"
-                          aria-describedby="free-delivery-help"
-                        />
-                      </div>
-                      <p id="free-delivery-help" className="text-xs text-gray-500 mt-1">
-                        Valor mínimo para frete grátis
-                      </p>
-                    </div>
+                <div>
+                  <Label>Modo de cálculo do frete</Label>
+                  <div className="flex gap-4 mt-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="delivery_mode"
+                        checked={(formData.delivery_mode || 'per_neighborhood') === 'per_neighborhood'}
+                        onChange={() => setFormData(prev => ({ ...prev, delivery_mode: 'per_neighborhood' }))}
+                        className="rounded"
+                      />
+                      <span>Taxa fixa por bairro</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="delivery_mode"
+                        checked={(formData.delivery_mode || 'per_neighborhood') === 'per_km'}
+                        onChange={() => setFormData(prev => ({ ...prev, delivery_mode: 'per_km' }))}
+                        className="rounded"
+                      />
+                      <span>Por distância (km/m)</span>
+                    </label>
+                  </div>
                 </div>
+                {(formData.delivery_mode || 'per_neighborhood') === 'per_km' && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Valor por unidade de distância (R$)</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={formData.delivery_price_per_km ?? 2.5}
+                        onChange={(e) => setFormData(prev => ({ ...prev, delivery_price_per_km: parseFloat(e.target.value) ?? 2.5 }))}
+                        placeholder="2.50"
+                      />
+                    </div>
+                    <div>
+                      <Label>Unidade</Label>
+                      <Select
+                        value={formData.delivery_distance_unit || 'km'}
+                        onValueChange={(v) => setFormData(prev => ({ ...prev, delivery_distance_unit: v }))}
+                      >
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="km">Por km</SelectItem>
+                          <SelectItem value="m">Por metro</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
+                {(formData.delivery_mode || 'per_neighborhood') === 'per_neighborhood' && (
+                  <div>
+                    <Label>Bairros atendidos (nome, taxa R$, tempo ex.: 30-40min)</Label>
+                    <div className="space-y-2 mt-2">
+                      {(formData.delivery_neighborhoods || []).map((b, i) => (
+                        <div key={i} className="flex gap-2 items-center flex-wrap">
+                          <Input
+                            placeholder="Bairro"
+                            value={b.name || ''}
+                            onChange={(e) => {
+                              const arr = [...(formData.delivery_neighborhoods || [])];
+                              arr[i] = { ...arr[i], name: e.target.value };
+                              setFormData(prev => ({ ...prev, delivery_neighborhoods: arr }));
+                            }}
+                            className="flex-1 min-w-[120px]"
+                          />
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="Taxa R$"
+                            value={b.fee ?? ''}
+                            onChange={(e) => {
+                              const arr = [...(formData.delivery_neighborhoods || [])];
+                              arr[i] = { ...arr[i], fee: parseFloat(e.target.value) || 0 };
+                              setFormData(prev => ({ ...prev, delivery_neighborhoods: arr }));
+                            }}
+                            className="w-24"
+                          />
+                          <Input
+                            placeholder="Ex: 30-40min"
+                            value={b.time || ''}
+                            onChange={(e) => {
+                              const arr = [...(formData.delivery_neighborhoods || [])];
+                              arr[i] = { ...arr[i], time: e.target.value };
+                              setFormData(prev => ({ ...prev, delivery_neighborhoods: arr }));
+                            }}
+                            className="w-28"
+                          />
+                          <Button type="button" variant="outline" size="icon" onClick={() => setFormData(prev => ({ ...prev, delivery_neighborhoods: (prev.delivery_neighborhoods || []).filter((_, j) => j !== i) }))}>
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ))}
+                      <Button type="button" variant="outline" size="sm" onClick={() => setFormData(prev => ({ ...prev, delivery_neighborhoods: [...(prev.delivery_neighborhoods || []), { name: '', fee: 0, time: '' }] }))}>
+                        <Plus className="w-4 h-4 mr-2" />
+                        Adicionar bairro
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-4 pt-2">
+                  <div>
+                    <Label htmlFor="free-delivery">Frete Grátis Acima de (R$)</Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">R$</span>
+                      <Input
+                        id="free-delivery"
+                        type="text"
+                        value={formData.free_delivery_above !== undefined && formData.free_delivery_above !== null ? formatCurrency(formData.free_delivery_above) : ''}
+                        onChange={(e) => {
+                          const unformatted = unformatCurrency(e.target.value);
+                          setFormData(prev => ({ ...prev, free_delivery_above: unformatted }));
+                        }}
+                        placeholder="150,00"
+                        className="pl-8"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white/60 backdrop-blur-sm border-gray-200/50">
+              <CardHeader>
+                <CardTitle>Marcas de produtos</CardTitle>
+                <CardDescription>Cadastre as marcas. Ao adicionar um produto, a marca aparecerá como lista para escolher.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {(formData.product_brands || []).map((brand, i) => (
+                  <div key={i} className="flex gap-2 items-center">
+                    <Input
+                      value={brand}
+                      onChange={(e) => {
+                        const arr = [...(formData.product_brands || [])];
+                        arr[i] = e.target.value;
+                        setFormData(prev => ({ ...prev, product_brands: arr }));
+                      }}
+                      placeholder="Nome da marca"
+                      className="max-w-xs"
+                    />
+                    <Button type="button" variant="outline" size="icon" onClick={() => setFormData(prev => ({ ...prev, product_brands: (prev.product_brands || []).filter((_, j) => j !== i) }))}>
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))}
+                <Button type="button" variant="outline" size="sm" onClick={() => setFormData(prev => ({ ...prev, product_brands: [...(prev.product_brands || []), ''] }))}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  Adicionar marca
+                </Button>
               </CardContent>
             </Card>
 

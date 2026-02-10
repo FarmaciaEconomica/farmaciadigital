@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { motion } from 'framer-motion';
-import { ArrowRight, Percent, ChevronRight, Star, FileText, Check, TrendingUp, Eye } from 'lucide-react';
+import { ArrowRight, Percent, ChevronRight, Star, FileText, Check, TrendingUp, Eye, List } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 import HeroBanner from '@/components/pharmacy/HeroBanner';
 import CategoryGrid from '@/components/pharmacy/CategoryGrid';
@@ -68,9 +69,25 @@ export default function Home() {
     retry: 2
   });
 
-  // Usar hook de filtros otimizado
   const { newProducts, featuredProducts, promotionProducts, recentlyViewed } = useProductFilters(allProducts);
 
+  const categoryMap = {
+    medicamentos: { name: 'Medicamentos', slug: 'medicamentos' },
+    dermocosmeticos: { name: 'Dermocosméticos', slug: 'dermocosmeticos' },
+    vitaminas: { name: 'Vitaminas', slug: 'vitaminas' },
+    higiene: { name: 'Higiene', slug: 'higiene' },
+    infantil: { name: 'Infantil', slug: 'infantil' },
+    mamae_bebe: { name: 'Mamãe & Bebê', slug: 'mamae_bebe' },
+    beleza: { name: 'Beleza', slug: 'beleza' },
+    diabetes: { name: 'Diabetes', slug: 'diabetes' },
+    nutricao: { name: 'Nutrição', slug: 'nutricao' },
+    ortopedia: { name: 'Ortopedia', slug: 'ortopedia' }
+  };
+  const categoriesFromProducts = useMemo(() => {
+    if (!allProducts?.length) return [];
+    const set = new Set(allProducts.filter(p => p.category).map(p => p.category));
+    return Object.values(categoryMap).filter(cat => set.has(cat.slug));
+  }, [allProducts]);
 
   const banners = theme.banners?.filter(b => b.active && b.position === 'hero') || [];
 
@@ -171,6 +188,39 @@ export default function Home() {
       case 'categories':
         return (
           <section key={section.id} className="max-w-7xl mx-auto px-4 py-4">
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+              <h2 className="text-xl font-bold text-gray-900">Categorias</h2>
+              <div className="hidden sm:block">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-2">
+                      <List className="w-4 h-4" />
+                      Ver lista de categorias
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-56 p-2" align="end">
+                    <nav className="flex flex-col gap-0.5">
+                      {categoriesFromProducts.length === 0 ? (
+                        <p className="text-sm text-gray-500 p-2">Nenhuma categoria com produtos</p>
+                      ) : (
+                        categoriesFromProducts.map((cat) => (
+                          <Link
+                            key={cat.slug}
+                            to={createPageUrl('Category') + `?cat=${cat.slug}`}
+                            className="block px-3 py-2 text-sm rounded-md hover:bg-gray-100"
+                          >
+                            {cat.name}
+                          </Link>
+                        ))
+                      )}
+                    </nav>
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
+            <div className="sm:hidden mb-3">
+              <p className="text-sm text-gray-600">Use o menu ☰ para ver categorias</p>
+            </div>
             <CategoryGrid />
           </section>
         );

@@ -17,42 +17,10 @@ export default function DeliveryAreas() {
   const [calculating, setCalculating] = useState(false);
   const [result, setResult] = useState(null);
 
-  // Bairros e áreas atendidas (pode vir do Base44 no futuro)
-  const deliveryZones = [
-    {
-      zone: 'Zona Premium',
-      description: 'Entrega super rápida',
-      areas: [
-        { name: 'Centro', time: '20-30min', fee: 5.00, zipStart: '01000' },
-        { name: 'Jardins', time: '25-35min', fee: 7.00, zipStart: '01400' },
-        { name: 'Paulista', time: '20-30min', fee: 6.00, zipStart: '01310' },
-        { name: 'Vila Mariana', time: '30-40min', fee: 8.00, zipStart: '04010' },
-      ],
-      color: 'emerald'
-    },
-    {
-      zone: 'Zona Standard',
-      description: 'Entrega rápida',
-      areas: [
-        { name: 'Moema', time: '35-45min', fee: 10.00, zipStart: '04560' },
-        { name: 'Pinheiros', time: '30-40min', fee: 9.00, zipStart: '05410' },
-        { name: 'Itaim Bibi', time: '35-45min', fee: 11.00, zipStart: '04530' },
-        { name: 'Brooklin', time: '40-50min', fee: 12.00, zipStart: '04560' },
-      ],
-      color: 'blue'
-    },
-    {
-      zone: 'Zona Expandida',
-      description: 'Entrega programada',
-      areas: [
-        { name: 'Tatuapé', time: '45-60min', fee: 15.00, zipStart: '03070' },
-        { name: 'Ipiranga', time: '50-65min', fee: 14.00, zipStart: '04260' },
-        { name: 'Santo Amaro', time: '45-60min', fee: 13.00, zipStart: '04750' },
-        { name: 'Outros bairros', time: '60-90min', fee: 15.00, zipStart: '00000' },
-      ],
-      color: 'orange'
-    }
-  ];
+  // Bairros cadastrados nas configurações (Admin > Configurações > Entrega)
+  const neighborhoods = theme.deliveryNeighborhoods || [];
+  const deliveryMode = theme.deliveryMode || 'per_neighborhood';
+  const isPerKm = deliveryMode === 'per_km';
 
   const handleCalculate = async () => {
     if (!zipCode || zipCode.length < 8) {
@@ -64,43 +32,39 @@ export default function DeliveryAreas() {
     setResult(null);
 
     try {
-      // Simular cálculo (em produção, usar API real)
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise(resolve => setTimeout(resolve, 600));
 
-      // Verificar zona baseado no CEP
-      const zipPrefix = zipCode.replace(/\D/g, '').substring(0, 5);
-      let foundZone = null;
-      let foundArea = null;
-
-      for (const zone of deliveryZones) {
-        const area = zone.areas.find(a => zipPrefix.startsWith(a.zipStart));
-        if (area) {
-          foundZone = zone;
-          foundArea = area;
-          break;
-        }
-      }
-
-      if (foundArea) {
-        setResult({
-          available: true,
-          neighborhood: foundArea.name,
-          time: foundArea.time,
-          fee: foundArea.fee,
-          zone: foundZone.zone,
-          freeShippingThreshold: theme.freeDeliveryAbove || 150
-        });
-        toast.success('CEP disponível para entrega!');
-      } else {
+      if (isPerKm) {
         setResult({
           available: true,
           neighborhood: 'Sua região',
-          time: '60-90min',
-          fee: 15.00,
-          zone: 'Zona Expandida',
+          time: 'A calcular',
+          fee: 0,
+          perKm: true,
           freeShippingThreshold: theme.freeDeliveryAbove || 150
         });
-        toast.info('Entregamos na sua região!');
+        toast.success('Entregamos na sua região! O frete é calculado por distância no carrinho.');
+        setCalculating(false);
+        return;
+      }
+
+      // Modo por bairro: verificar se CEP está em algum bairro (por nome não temos CEP; aceitar qualquer CEP e mostrar lista)
+      const firstArea = neighborhoods.find(b => b.name && b.fee != null);
+      if (firstArea) {
+        setResult({
+          available: true,
+          neighborhood: 'Consulte a lista abaixo',
+          time: firstArea.time || '',
+          fee: firstArea.fee,
+          freeShippingThreshold: theme.freeDeliveryAbove || 150
+        });
+        toast.success('Consulte os bairros e valores na lista abaixo.');
+      } else {
+        setResult({
+          available: false,
+          freeShippingThreshold: theme.freeDeliveryAbove || 150
+        });
+        toast.info('Cadastre bairros em Admin > Configurações > Entrega para ver valores.');
       }
     } catch (error) {
       console.error('Erro ao calcular:', error);
@@ -207,30 +171,32 @@ export default function DeliveryAreas() {
                       </div>
                       <div>
                         <h3 className="font-bold text-emerald-900 text-lg">
-                          Entregamos em {result.neighborhood}!
+                          {result.perKm ? 'Entregamos na sua região!' : `Entregamos em ${result.neighborhood}!`}
                         </h3>
-                        <p className="text-sm text-emerald-700">{result.zone}</p>
+                        {result.perKm && <p className="text-sm text-emerald-700">Frete calculado por distância no carrinho</p>}
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                      <div className="bg-white rounded-xl p-4">
-                        <div className="flex items-center gap-2 text-gray-600 mb-1">
-                          <Clock className="w-4 h-4" />
-                          <span className="text-xs">Tempo</span>
+                    {!result.perKm && (
+                      <div className="grid grid-cols-2 gap-4 mb-4">
+                        <div className="bg-white rounded-xl p-4">
+                          <div className="flex items-center gap-2 text-gray-600 mb-1">
+                            <Clock className="w-4 h-4" />
+                            <span className="text-xs">Tempo</span>
+                          </div>
+                          <p className="text-lg font-bold text-gray-900">{result.time || '—'}</p>
                         </div>
-                        <p className="text-lg font-bold text-gray-900">{result.time}</p>
-                      </div>
-                      <div className="bg-white rounded-xl p-4">
-                        <div className="flex items-center gap-2 text-gray-600 mb-1">
-                          <Truck className="w-4 h-4" />
-                          <span className="text-xs">Frete</span>
+                        <div className="bg-white rounded-xl p-4">
+                          <div className="flex items-center gap-2 text-gray-600 mb-1">
+                            <Truck className="w-4 h-4" />
+                            <span className="text-xs">Frete</span>
+                          </div>
+                          <p className="text-lg font-bold text-emerald-600">
+                            R$ {(result.fee || 0).toFixed(2)}
+                          </p>
                         </div>
-                        <p className="text-lg font-bold text-emerald-600">
-                          R$ {result.fee.toFixed(2)}
-                        </p>
                       </div>
-                    </div>
+                    )}
 
                     <div className="bg-gradient-to-r from-orange-100 to-yellow-100 rounded-xl p-4">
                       <p className="text-sm text-gray-900 font-medium">
@@ -256,58 +222,56 @@ export default function DeliveryAreas() {
           </div>
         </motion.div>
 
-        {/* Delivery Zones */}
+        {/* Lista de bairros (cadastrados em Configurações > Entrega) */}
         <div className="py-12">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold text-gray-900 mb-3">
-              Nossas Zonas de Entrega
+              Onde Entregamos
             </h2>
             <p className="text-gray-600 max-w-2xl mx-auto">
-              Cobrimos toda a região com diferentes tempos e valores de entrega
+              {isPerKm
+                ? 'O frete é calculado por distância (km ou m) no carrinho. Consulte o valor ao informar seu endereço.'
+                : neighborhoods.length > 0
+                  ? 'Bairros atendidos com taxa fixa. Os valores abaixo são configurados pela loja.'
+                  : 'Cadastre os bairros em Admin > Configurações > Entrega para exibir aqui.'}
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8 mb-12">
-            {deliveryZones.map((zone, zoneIndex) => (
-              <motion.div
-                key={zone.zone}
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: zoneIndex * 0.1 }}
-                className="bg-white rounded-2xl shadow-lg overflow-hidden"
-              >
-                <div className={`bg-gradient-to-r from-${zone.color}-500 to-${zone.color}-600 text-white p-6`}>
-                  <h3 className="text-2xl font-bold mb-2">{zone.zone}</h3>
-                  <p className="text-sm opacity-90">{zone.description}</p>
-                </div>
-
-                <div className="p-6 space-y-4">
-                  {zone.areas.map((area, areaIndex) => (
-                    <div
-                      key={areaIndex}
-                      className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={`w-2 h-2 bg-${zone.color}-500 rounded-full`} />
-                        <div>
-                          <p className="font-medium text-gray-900">{area.name}</p>
+          {neighborhoods.length > 0 && !isPerKm && (
+            <motion.div
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              className="bg-white rounded-2xl shadow-lg p-6 mb-12 max-w-2xl mx-auto"
+            >
+              <h3 className="text-xl font-bold text-gray-900 mb-4">Bairros e valores</h3>
+              <div className="space-y-3">
+                {neighborhoods.map((b, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center justify-between p-3 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-2 h-2 bg-emerald-500 rounded-full" />
+                      <div>
+                        <p className="font-medium text-gray-900">{b.name || 'Bairro'}</p>
+                        {b.time && (
                           <p className="text-xs text-gray-500 flex items-center gap-1">
                             <Clock className="w-3 h-3" />
-                            {area.time}
+                            {b.time}
                           </p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-bold text-gray-900">
-                          R$ {area.fee.toFixed(2)}
-                        </p>
+                        )}
                       </div>
                     </div>
-                  ))}
-                </div>
-              </motion.div>
-            ))}
-          </div>
+                    <div className="text-right">
+                      <p className="font-bold text-gray-900">
+                        R$ {(b.fee || 0).toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
         </div>
 
         {/* Benefits Section */}

@@ -26,14 +26,18 @@ export default function UploadPrescription() {
   const [step, setStep] = useState(1);
   const [file, setFile] = useState(null);
   const [filePreview, setFilePreview] = useState(null);
+  const [fileUrl, setFileUrl] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [extractedData, setExtractedData] = useState(null);
   const [customerInfo, setCustomerInfo] = useState({
     name: '',
     phone: '',
+    email: '',
     notes: ''
   });
+  const [submitted, setSubmitted] = useState(false);
 
   const handleFileSelect = async (e) => {
     const selectedFile = e.target.files?.[0];
@@ -68,45 +72,63 @@ export default function UploadPrescription() {
     if (!file) return;
 
     setIsUploading(true);
-    
-    const { file_url } = await base44.integrations.Core.UploadFile({ file });
-    
-    setIsUploading(false);
-    setIsAnalyzing(true);
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file });
+      setFileUrl(file_url);
+      setIsUploading(false);
+      setIsAnalyzing(true);
 
-    // Analyze prescription with AI
-    const result = await base44.integrations.Core.ExtractDataFromUploadedFile({
-      file_url,
-      json_schema: {
-        type: 'object',
-        properties: {
-          medications: {
-            type: 'array',
-            items: {
-              type: 'object',
-              properties: {
-                name: { type: 'string' },
-                dosage: { type: 'string' },
-                quantity: { type: 'string' },
-                instructions: { type: 'string' }
-              }
+      try {
+        const result = await base44.integrations.Core.ExtractDataFromUploadedFile({
+          file_url,
+          json_schema: {
+            type: 'object',
+            properties: {
+              medications: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, dosage: { type: 'string' }, quantity: { type: 'string' }, instructions: { type: 'string' } } } },
+              doctor_name: { type: 'string' },
+              crm: { type: 'string' },
+              date: { type: 'string' }
             }
-          },
-          doctor_name: { type: 'string' },
-          crm: { type: 'string' },
-          date: { type: 'string' }
-        }
+          }
+        });
+        if (result?.status === 'success' && result?.output) setExtractedData(result.output);
+      } catch (e) {
+        console.warn('Análise opcional falhou:', e);
       }
-    });
+      setIsAnalyzing(false);
+      setStep(3);
+      toast.success('Receita anexada!');
+    } catch (err) {
+      setIsUploading(false);
+      setIsAnalyzing(false);
+      toast.error('Erro ao enviar arquivo. Tente novamente.');
+    }
+  };
 
-    setIsAnalyzing(false);
-
-    if (result.status === 'success' && result.output) {
-      setExtractedData(result.output);
-      setStep(2);
-      toast.success('Receita analisada com sucesso!');
-    } else {
-      toast.error('Não foi possível analisar a receita. Tente novamente.');
+  const handleSubmitPrescription = async () => {
+    if (!customerInfo.name?.trim() || !customerInfo.phone?.trim()) {
+      toast.error('Preencha nome e telefone.');
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      await base44.entities.Prescription.create({
+        customer_name: customerInfo.name.trim(),
+        customer_phone: customerInfo.phone.replace(/\D/g, ''),
+        customer_email: customerInfo.email?.trim() || null,
+        file_url: fileUrl || null,
+        notes: customerInfo.notes?.trim() || null,
+        status: 'pending',
+        extracted_data: extractedData || null,
+        created_date: new Date().toISOString()
+      });
+      setSubmitted(true);
+      toast.success('Receita registrada! Em breve entraremos em contato.');
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro ao enviar. Tente novamente.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -158,28 +180,64 @@ export default function UploadPrescription() {
         </div>
 
         {/* Progress */}
-        <div className="flex items-center justify-center gap-4 mb-8">
-          {[1, 2, 3].map((s) => (
+        <div className="flex items-center justify-center gap-2 mb-8 flex-wrap">
+          {[1, 2, 3, 4].map((s) => (
             <div key={s} className="flex items-center">
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold ${
-                step >= s 
-                  ? 'bg-emerald-600 text-white' 
-                  : 'bg-gray-200 text-gray-400'
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold ${
+                step >= s ? 'bg-emerald-600 text-white' : 'bg-gray-200 text-gray-400'
               }`}>
-                {step > s ? <Check className="w-5 h-5" /> : s}
+                {step > s ? <Check className="w-4 h-4" /> : s}
               </div>
-              {s < 3 && (
-                <div className={`w-16 h-1 mx-2 ${
-                  step > s ? 'bg-emerald-600' : 'bg-gray-200'
-                }`} />
-              )}
+              {s < 4 && <div className={`w-8 h-1 mx-1 ${step > s ? 'bg-emerald-600' : 'bg-gray-200'}`} />}
             </div>
           ))}
         </div>
 
+        {submitted ? (
+          <Card className="shadow-lg">
+            <CardContent className="p-8 text-center">
+              <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Check className="w-8 h-8 text-emerald-600" />
+              </div>
+              <h2 className="text-xl font-semibold text-gray-900 mb-2">Receita enviada!</h2>
+              <p className="text-gray-600 mb-6">Registramos sua receita. Em breve nossa equipe entrará em contato.</p>
+              <Button onClick={handleSendToWhatsApp} className="bg-green-600 hover:bg-green-700">
+                Abrir WhatsApp
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
         <AnimatePresence mode="wait">
-          {/* Step 1: Upload */}
+          {/* Step 1: Dados pessoais */}
           {step === 1 && (
+            <motion.div key="step1" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
+              <Card className="shadow-lg">
+                <CardContent className="p-8">
+                  <h2 className="text-xl font-semibold text-gray-900 mb-6">1. Seus dados</h2>
+                  <div className="space-y-4 mb-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Nome completo *</label>
+                      <Input value={customerInfo.name} onChange={(e) => setCustomerInfo(prev => ({ ...prev, name: e.target.value }))} placeholder="Seu nome" className="h-12" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Telefone / WhatsApp *</label>
+                      <Input value={customerInfo.phone} onChange={(e) => setCustomerInfo(prev => ({ ...prev, phone: e.target.value }))} placeholder="(00) 00000-0000" className="h-12" maxLength={15} />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">E-mail (opcional)</label>
+                      <Input type="email" value={customerInfo.email} onChange={(e) => setCustomerInfo(prev => ({ ...prev, email: e.target.value }))} placeholder="seu@email.com" className="h-12" />
+                    </div>
+                  </div>
+                  <Button onClick={() => setStep(2)} disabled={!customerInfo.name?.trim() || !customerInfo.phone?.trim()} className="w-full bg-emerald-600 hover:bg-emerald-700 h-12">
+                    Próximo <ChevronRight className="w-5 h-5 ml-2" />
+                  </Button>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+
+          {/* Step 2: Anexar receita */}
+          {step === 2 && (
             <motion.div
               key="step1"
               initial={{ opacity: 0, y: 20 }}
@@ -189,29 +247,32 @@ export default function UploadPrescription() {
               <Card className="shadow-lg">
                 <CardContent className="p-8">
                   <h2 className="text-xl font-semibold text-gray-900 mb-6">
-                    1. Envie a foto ou PDF da receita
+                    2. Anexe a foto ou PDF da receita
                   </h2>
 
                   {!file ? (
-                    <label className="block">
-                      <div className="border-2 border-dashed border-gray-300 rounded-2xl p-12 text-center cursor-pointer hover:border-emerald-500 hover:bg-emerald-50 transition-all">
-                        <input
-                          type="file"
-                          accept="image/jpeg,image/png,image/jpg,application/pdf"
-                          onChange={handleFileSelect}
-                          className="hidden"
-                        />
-                        <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                          <Upload className="w-8 h-8 text-gray-400" />
+                    <>
+                      <label className="block">
+                        <div className="border-2 border-dashed border-gray-300 rounded-2xl p-12 text-center cursor-pointer hover:border-emerald-500 hover:bg-emerald-50 transition-all">
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/jpg,application/pdf"
+                            onChange={handleFileSelect}
+                            className="hidden"
+                          />
+                          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <Upload className="w-8 h-8 text-gray-400" />
+                          </div>
+                          <p className="text-gray-600 font-medium mb-2">
+                            Clique para enviar ou arraste o arquivo
+                          </p>
+                          <p className="text-sm text-gray-400">
+                            JPG, PNG ou PDF (máx. 10MB)
+                          </p>
                         </div>
-                        <p className="text-gray-600 font-medium mb-2">
-                          Clique para enviar ou arraste o arquivo
-                        </p>
-                        <p className="text-sm text-gray-400">
-                          JPG, PNG ou PDF (máx. 10MB)
-                        </p>
-                      </div>
-                    </label>
+                      </label>
+                      <Button variant="outline" onClick={() => setStep(3)} className="w-full mt-4">Pular (enviar depois)</Button>
+                    </>
                   ) : (
                     <div className="space-y-6">
                       {/* Preview */}
@@ -261,13 +322,16 @@ export default function UploadPrescription() {
                           </>
                         ) : (
                           <>
-                            Analisar Receita
+                            Próximo
                             <ChevronRight className="w-5 h-5 ml-2" />
                           </>
                         )}
                       </Button>
-                    </div>
                   )}
+
+                  <div className="mt-6 flex gap-2">
+                    <Button variant="outline" onClick={() => setStep(1)}>Voltar</Button>
+                  </div>
 
                   <div className="mt-8 grid grid-cols-3 gap-4 text-center text-sm">
                     <div className="p-4 bg-gray-50 rounded-xl">
@@ -288,160 +352,45 @@ export default function UploadPrescription() {
             </motion.div>
           )}
 
-          {/* Step 2: Review */}
-          {step === 2 && (
-            <motion.div
-              key="step2"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-            >
+          {/* Step 3: Observações */}
+          {step === 3 && (
+            <motion.div key="step3" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
               <Card className="shadow-lg">
                 <CardContent className="p-8">
-                  <h2 className="text-xl font-semibold text-gray-900 mb-6">
-                    2. Confira os medicamentos identificados
-                  </h2>
-
-                  {extractedData?.medications?.length > 0 ? (
-                    <div className="space-y-4 mb-8">
-                      {extractedData.medications.map((med, index) => (
-                        <div
-                          key={index}
-                          className="flex items-center gap-4 p-4 bg-emerald-50 rounded-xl"
-                        >
-                          <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center">
-                            <Pill className="w-6 h-6 text-emerald-600" />
-                          </div>
-                          <div className="flex-1">
-                            <p className="font-medium text-gray-900">{med.name}</p>
-                            <p className="text-sm text-gray-500">
-                              {med.dosage && `Dosagem: ${med.dosage}`}
-                              {med.quantity && ` • Qtd: ${med.quantity}`}
-                            </p>
-                            {med.instructions && (
-                              <p className="text-xs text-gray-400 mt-1">{med.instructions}</p>
-                            )}
-                          </div>
-                          <Check className="w-5 h-5 text-emerald-600" />
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8 mb-8 bg-amber-50 rounded-xl">
-                      <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-3" />
-                      <p className="text-amber-800 font-medium">
-                        Não conseguimos identificar os medicamentos automaticamente
-                      </p>
-                      <p className="text-amber-600 text-sm mt-1">
-                        Não se preocupe! Nosso farmacêutico irá analisar sua receita manualmente.
-                      </p>
-                    </div>
-                  )}
-
-                  {extractedData?.doctor_name && (
-                    <div className="bg-gray-50 rounded-xl p-4 mb-6">
-                      <p className="text-sm text-gray-500">Médico</p>
-                      <p className="font-medium text-gray-900">{extractedData.doctor_name}</p>
-                      {extractedData.crm && (
-                        <p className="text-sm text-gray-500">CRM: {extractedData.crm}</p>
-                      )}
-                    </div>
-                  )}
-
+                  <h2 className="text-xl font-semibold text-gray-900 mb-6">3. Dúvidas ou observações (opcional)</h2>
+                  <Textarea
+                    value={customerInfo.notes}
+                    onChange={(e) => setCustomerInfo(prev => ({ ...prev, notes: e.target.value }))}
+                    placeholder="Descreva dúvidas, complementos ou algo que queira informar..."
+                    rows={4}
+                    className="mb-6"
+                  />
                   <div className="flex gap-4">
-                    <Button
-                      variant="outline"
-                      onClick={() => setStep(1)}
-                      className="flex-1"
-                    >
-                      Enviar outra receita
-                    </Button>
-                    <Button
-                      onClick={() => setStep(3)}
-                      className="flex-1 bg-emerald-600 hover:bg-emerald-700"
-                    >
-                      Continuar
-                      <ChevronRight className="w-5 h-5 ml-2" />
-                    </Button>
+                    <Button variant="outline" onClick={() => setStep(2)} className="flex-1">Voltar</Button>
+                    <Button onClick={() => setStep(4)} className="flex-1 bg-emerald-600 hover:bg-emerald-700">Revisar e enviar <ChevronRight className="w-5 h-5 ml-2" /></Button>
                   </div>
                 </CardContent>
               </Card>
             </motion.div>
           )}
 
-          {/* Step 3: Contact Info */}
-          {step === 3 && (
-            <motion.div
-              key="step3"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-            >
+          {/* Step 4: Revisar e enviar */}
+          {step === 4 && (
+            <motion.div key="step4" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}>
               <Card className="shadow-lg">
                 <CardContent className="p-8">
-                  <h2 className="text-xl font-semibold text-gray-900 mb-6">
-                    3. Seus dados para contato
-                  </h2>
-
-                  <div className="space-y-4 mb-8">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Nome completo
-                      </label>
-                      <Input
-                        value={customerInfo.name}
-                        onChange={(e) => setCustomerInfo(prev => ({ ...prev, name: e.target.value }))}
-                        placeholder="Seu nome"
-                        className="h-12"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        WhatsApp
-                      </label>
-                      <Input
-                        value={customerInfo.phone}
-                        onChange={(e) => {
-                          const formatted = applyPhoneMask(e.target.value);
-                          setCustomerInfo(prev => ({ ...prev, phone: formatted }));
-                        }}
-                        placeholder="(00) 00000-0000"
-                        className="h-12"
-                        maxLength={15}
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Observações (opcional)
-                      </label>
-                      <Textarea
-                        value={customerInfo.notes}
-                        onChange={(e) => setCustomerInfo(prev => ({ ...prev, notes: e.target.value }))}
-                        placeholder="Alguma informação adicional..."
-                        rows={3}
-                      />
-                    </div>
+                  <h2 className="text-xl font-semibold text-gray-900 mb-6">4. Revisar e enviar</h2>
+                  <div className="space-y-3 mb-6 p-4 bg-gray-50 rounded-xl">
+                    <p><span className="text-gray-500">Nome:</span> {customerInfo.name}</p>
+                    <p><span className="text-gray-500">Telefone:</span> {customerInfo.phone}</p>
+                    {customerInfo.email && <p><span className="text-gray-500">E-mail:</span> {customerInfo.email}</p>}
+                    {file && <p><span className="text-gray-500">Arquivo:</span> {file.name}</p>}
+                    {customerInfo.notes && <p><span className="text-gray-500">Observações:</span> {customerInfo.notes}</p>}
                   </div>
-
                   <div className="flex gap-4">
-                    <Button
-                      variant="outline"
-                      onClick={() => setStep(2)}
-                      className="flex-1"
-                    >
-                      Voltar
-                    </Button>
-                    <Button
-                      onClick={handleSendToWhatsApp}
-                      disabled={!customerInfo.name || !customerInfo.phone}
-                      className="flex-1 bg-green-600 hover:bg-green-700"
-                    >
-                      <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-                      </svg>
-                      Solicitar Orçamento
+                    <Button variant="outline" onClick={() => setStep(3)} className="flex-1">Voltar</Button>
+                    <Button onClick={handleSubmitPrescription} disabled={isSubmitting} className="flex-1 bg-emerald-600 hover:bg-emerald-700">
+                      {isSubmitting ? <><Loader2 className="w-5 h-5 mr-2 animate-spin" /> Enviando...</> : 'Enviar receita'}
                     </Button>
                   </div>
                 </CardContent>
@@ -449,6 +398,7 @@ export default function UploadPrescription() {
             </motion.div>
           )}
         </AnimatePresence>
+        )}
 
         {/* Info box */}
         <div className="mt-8 bg-blue-50 border border-blue-200 rounded-2xl p-6">

@@ -2,19 +2,41 @@ import React from 'react';
 import ProductCard from './ProductCard';
 import { Skeleton } from "@/components/ui/skeleton";
 
+const MOBILE_GRID_KEY = 'pharmacy_mobile_grid_cols';
+
+export function getMobileGridCols() {
+  if (typeof window === 'undefined') return 2;
+  const v = localStorage.getItem(MOBILE_GRID_KEY);
+  return v === '1' ? 1 : 2;
+}
+
+export function setMobileGridCols(n) {
+  localStorage.setItem(MOBILE_GRID_KEY, String(n));
+  window.dispatchEvent(new Event('mobileGridColsChange'));
+}
+
 export default function ProductGrid({ 
   products = [], 
   isLoading = false, 
   onAddToCart, 
   onAddToFavorites,
   favorites = [],
-  columns = 4 
+  columns = 4,
+  mobileColumns
 }) {
+  const [mobileCols, setMobileCols] = React.useState(() => mobileColumns ?? getMobileGridCols());
+  React.useEffect(() => {
+    const handler = () => setMobileCols(getMobileGridCols());
+    window.addEventListener('mobileGridColsChange', handler);
+    return () => window.removeEventListener('mobileGridColsChange', handler);
+  }, []);
+  const mCols = mobileColumns ?? mobileCols;
+
   const gridCols = {
-    2: 'grid-cols-2',
-    3: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3',
-    4: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4',
-    5: 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'
+    2: mCols === 1 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-2',
+    3: mCols === 1 ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' : 'grid-cols-2 sm:grid-cols-2 lg:grid-cols-3',
+    4: mCols === 1 ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' : 'grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4',
+    5: mCols === 1 ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5' : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'
   };
 
   if (isLoading) {

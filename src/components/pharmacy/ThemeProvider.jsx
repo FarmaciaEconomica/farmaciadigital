@@ -99,6 +99,15 @@ export default function ThemeProvider({ children }) {
     // Financial configs
     installments: settings?.installments || 3,
     installmentHasInterest: settings?.installmentHasInterest || false,
+    installmentMinValue: settings?.installment_min_value ?? 50,
+    installmentInterestRate: settings?.installment_interest_rate ?? 0,
+    // Delivery config
+    deliveryMode: settings?.delivery_mode || 'per_neighborhood',
+    deliveryNeighborhoods: settings?.delivery_neighborhoods || [],
+    deliveryPricePerKm: settings?.delivery_price_per_km ?? 2.5,
+    deliveryDistanceUnit: settings?.delivery_distance_unit || 'km',
+    // Product brands (for AdminProducts select)
+    productBrands: settings?.product_brands || [],
     
     // Section configs
     sections: {
