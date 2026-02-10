@@ -1,17 +1,26 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import pg from 'pg';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const { Pool } = pg;
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 10000;
+
+// Pool de conexão PostgreSQL
+let pool = null;
+const usePostgres = !!process.env.DATABASE_URL;
+
+if (usePostgres) {
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false }
+  });
+  pool.on('error', (err) => console.error('Erro inesperado no pool:', err));
+}
 
 // Middleware
 app.use(cors({
@@ -20,96 +29,160 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Arquivos de persistência
-const DATA_DIR = path.join(__dirname, 'data');
-const PRODUCTS_FILE = path.join(DATA_DIR, 'products.json');
-const CATEGORIES_FILE = path.join(DATA_DIR, 'categories.json');
+// ========== Funções de persistência PostgreSQL ==========
 
-// Criar diretório de dados se não existir
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
+async function getProductsFromDB(filters = {}) {
+  if (!pool) return [];
+  const { status, category, search } = filters;
+  
+  let query = 'SELECT * FROM products WHERE 1=1';
+  const params = [];
+  let paramIndex = 1;
+
+  if (status) {
+    query += ` AND status = $${paramIndex++}`;
+    params.push(status);
+  }
+  if (category) {
+    query += ` AND category = $${paramIndex++}`;
+    params.push(category);
+  }
+  if (search) {
+    query += ` AND (LOWER(name) LIKE $${paramIndex} OR LOWER(sku) LIKE $${paramIndex} OR LOWER(barcode) LIKE $${paramIndex})`;
+    params.push(`%${search.toLowerCase()}%`);
+    paramIndex++;
+  }
+
+  const result = await pool.query(query, params);
+  return result.rows.map(rowToProduct);
 }
 
-// Funções de persistência
-function loadProducts() {
-  try {
-    if (fs.existsSync(PRODUCTS_FILE)) {
-      const data = fs.readFileSync(PRODUCTS_FILE, 'utf8');
-      const products = JSON.parse(data);
-      console.log(`📦 Carregados ${products.length} produtos do arquivo`);
-      return products;
+async function getProductByIdFromDB(id) {
+  if (!pool) return null;
+  const result = await pool.query('SELECT * FROM products WHERE id = $1', [id]);
+  return result.rows[0] ? rowToProduct(result.rows[0]) : null;
+}
+
+async function createProductInDB(product) {
+  if (!pool) throw new Error('Database not configured');
+  
+  const { id, name, description, price, sku, barcode, category, stock, status, image_url, created_date, updated_date, ...extra } = product;
+  
+  await pool.query(
+    `INSERT INTO products (id, name, description, price, sku, barcode, category, stock, status, image_url, created_date, updated_date, data)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+    [
+      id,
+      name || '',
+      description || null,
+      price ?? null,
+      sku || null,
+      barcode || null,
+      category || null,
+      stock ?? 0,
+      status || 'active',
+      image_url || null,
+      created_date || new Date().toISOString(),
+      updated_date || new Date().toISOString(),
+      Object.keys(extra).length ? JSON.stringify(extra) : null
+    ]
+  );
+}
+
+async function updateProductInDB(id, product) {
+  if (!pool) throw new Error('Database not configured');
+  
+  const { name, description, price, sku, barcode, category, stock, status, image_url, created_date, ...extra } = product;
+  const updated_date = new Date().toISOString();
+  const dataJson = Object.keys(extra).length ? JSON.stringify(extra) : null;
+
+  await pool.query(
+    `UPDATE products SET 
+      name = $2, description = $3, price = $4, sku = $5, barcode = $6,
+      category = $7, stock = $8, status = $9, image_url = $10,
+      updated_date = $11, data = $12
+    WHERE id = $1`,
+    [
+      id,
+      name ?? '',
+      description ?? null,
+      price ?? null,
+      sku ?? null,
+      barcode ?? null,
+      category ?? null,
+      stock ?? 0,
+      status ?? 'active',
+      image_url ?? null,
+      updated_date,
+      dataJson
+    ]
+  );
+}
+
+async function deleteProductFromDB(id) {
+  if (!pool) throw new Error('Database not configured');
+  await pool.query('DELETE FROM products WHERE id = $1', [id]);
+}
+
+function rowToProduct(row) {
+  const product = {
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    price: row.price ? parseFloat(row.price) : row.price,
+    sku: row.sku,
+    barcode: row.barcode,
+    category: row.category,
+    stock: row.stock ?? 0,
+    status: row.status || 'active',
+    image_url: row.image_url,
+    created_date: row.created_date?.toISOString?.() || row.created_date,
+    updated_date: row.updated_date?.toISOString?.() || row.updated_date
+  };
+  if (row.data && typeof row.data === 'object') {
+    Object.assign(product, row.data);
+  }
+  return product;
+}
+
+async function getCategoriesFromDB() {
+  if (!pool) return [];
+  const result = await pool.query('SELECT * FROM categories ORDER BY name');
+  return result.rows.map(row => ({
+    id: row.id,
+    name: row.name,
+    slug: row.slug,
+    ...(row.data && typeof row.data === 'object' ? row.data : {})
+  }));
+}
+
+// ========== Health check ==========
+app.get('/api/health', async (req, res) => {
+  let productsCount = 0;
+  if (pool) {
+    try {
+      const result = await pool.query('SELECT COUNT(*) as count FROM products');
+      productsCount = parseInt(result.rows[0]?.count || 0, 10);
+    } catch (e) {
+      console.error('Erro no health check:', e);
     }
-  } catch (error) {
-    console.error('Erro ao carregar produtos:', error);
   }
-  return [];
-}
-
-function saveProducts(products) {
-  try {
-    fs.writeFileSync(PRODUCTS_FILE, JSON.stringify(products, null, 2), 'utf8');
-    console.log(`💾 ${products.length} produtos salvos no arquivo`);
-  } catch (error) {
-    console.error('Erro ao salvar produtos:', error);
-  }
-}
-
-function loadCategories() {
-  try {
-    if (fs.existsSync(CATEGORIES_FILE)) {
-      const data = fs.readFileSync(CATEGORIES_FILE, 'utf8');
-      return JSON.parse(data);
-    }
-  } catch (error) {
-    console.error('Erro ao carregar categorias:', error);
-  }
-  return [];
-}
-
-function saveCategories(categories) {
-  try {
-    fs.writeFileSync(CATEGORIES_FILE, JSON.stringify(categories, null, 2), 'utf8');
-  } catch (error) {
-    console.error('Erro ao salvar categorias:', error);
-  }
-}
-
-// Carregar dados ao iniciar
-let productsStore = loadProducts();
-let categoriesStore = loadCategories();
-
-// Health check
-app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'ok', 
     message: 'API funcionando',
     timestamp: new Date().toISOString(),
-    productsCount: productsStore.length
+    productsCount,
+    database: usePostgres ? 'postgresql' : 'none'
   });
 });
 
-// Rotas de produtos
-app.get('/api/products', (req, res) => {
+// ========== Rotas de produtos ==========
+app.get('/api/products', async (req, res) => {
   try {
-    const { status, category, search } = req.query;
-    let products = [...productsStore];
-    
-    // Filtros
-    if (status) {
-      products = products.filter(p => p.status === status);
+    if (!usePostgres) {
+      return res.status(503).json({ error: 'Database not configured. Set DATABASE_URL.' });
     }
-    if (category) {
-      products = products.filter(p => p.category === category);
-    }
-    if (search) {
-      const searchLower = search.toLowerCase();
-      products = products.filter(p => 
-        p.name?.toLowerCase().includes(searchLower) ||
-        p.sku?.toLowerCase().includes(searchLower) ||
-        p.barcode?.toLowerCase().includes(searchLower)
-      );
-    }
-    
+    const products = await getProductsFromDB(req.query);
     res.json(products);
   } catch (error) {
     console.error('Erro ao buscar produtos:', error);
@@ -117,9 +190,12 @@ app.get('/api/products', (req, res) => {
   }
 });
 
-app.get('/api/products/:id', (req, res) => {
+app.get('/api/products/:id', async (req, res) => {
   try {
-    const product = productsStore.find(p => p.id === req.params.id);
+    if (!usePostgres) {
+      return res.status(503).json({ error: 'Database not configured. Set DATABASE_URL.' });
+    }
+    const product = await getProductByIdFromDB(req.params.id);
     if (!product) {
       return res.status(404).json({ error: 'Produto não encontrado' });
     }
@@ -130,8 +206,11 @@ app.get('/api/products/:id', (req, res) => {
   }
 });
 
-app.post('/api/products', (req, res) => {
+app.post('/api/products', async (req, res) => {
   try {
+    if (!usePostgres) {
+      return res.status(503).json({ error: 'Database not configured. Set DATABASE_URL.' });
+    }
     const data = req.body;
     const product = {
       id: `prod_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -139,8 +218,7 @@ app.post('/api/products', (req, res) => {
       created_date: new Date().toISOString(),
       updated_date: new Date().toISOString()
     };
-    productsStore.push(product);
-    saveProducts(productsStore); // Salvar no arquivo
+    await createProductInDB(product);
     console.log(`✅ Produto criado: ${product.id} - ${product.name}`);
     res.status(201).json(product);
   } catch (error) {
@@ -149,20 +227,22 @@ app.post('/api/products', (req, res) => {
   }
 });
 
-app.put('/api/products/:id', (req, res) => {
+app.put('/api/products/:id', async (req, res) => {
   try {
-    const index = productsStore.findIndex(p => p.id === req.params.id);
-    if (index === -1) {
+    if (!usePostgres) {
+      return res.status(503).json({ error: 'Database not configured. Set DATABASE_URL.' });
+    }
+    const existing = await getProductByIdFromDB(req.params.id);
+    if (!existing) {
       return res.status(404).json({ error: 'Produto não encontrado' });
     }
     const updatedProduct = {
-      ...productsStore[index],
+      ...existing,
       ...req.body,
       id: req.params.id,
       updated_date: new Date().toISOString()
     };
-    productsStore[index] = updatedProduct;
-    saveProducts(productsStore); // Salvar no arquivo
+    await updateProductInDB(req.params.id, updatedProduct);
     console.log(`✅ Produto atualizado: ${updatedProduct.id} - ${updatedProduct.name}`);
     res.json(updatedProduct);
   } catch (error) {
@@ -171,14 +251,16 @@ app.put('/api/products/:id', (req, res) => {
   }
 });
 
-app.delete('/api/products/:id', (req, res) => {
+app.delete('/api/products/:id', async (req, res) => {
   try {
-    const index = productsStore.findIndex(p => p.id === req.params.id);
-    if (index === -1) {
+    if (!usePostgres) {
+      return res.status(503).json({ error: 'Database not configured. Set DATABASE_URL.' });
+    }
+    const existing = await getProductByIdFromDB(req.params.id);
+    if (!existing) {
       return res.status(404).json({ error: 'Produto não encontrado' });
     }
-    productsStore.splice(index, 1);
-    saveProducts(productsStore); // Salvar no arquivo
+    await deleteProductFromDB(req.params.id);
     console.log(`✅ Produto deletado: ${req.params.id}`);
     res.json({ success: true });
   } catch (error) {
@@ -187,22 +269,23 @@ app.delete('/api/products/:id', (req, res) => {
   }
 });
 
-// Rotas de pedidos
+// ========== Rotas de pedidos ==========
 app.get('/api/orders', (req, res) => {
-  // TODO: Implementar lógica de pedidos
   res.json({ orders: [] });
 });
 
 app.post('/api/orders', (req, res) => {
-  // TODO: Implementar criação de pedido
   res.json({ success: true, order: req.body });
 });
 
-// Rotas de categorias
-app.get('/api/categories', (req, res) => {
+// ========== Rotas de categorias ==========
+app.get('/api/categories', async (req, res) => {
   try {
-    // Se não houver categorias, retornar padrões
-    if (categoriesStore.length === 0) {
+    if (!usePostgres) {
+      return res.status(503).json({ error: 'Database not configured. Set DATABASE_URL.' });
+    }
+    let categories = await getCategoriesFromDB();
+    if (categories.length === 0) {
       const defaultCategories = [
         { id: 'cat_1', name: 'Medicamentos', slug: 'medicamentos' },
         { id: 'cat_2', name: 'Dermocosméticos', slug: 'dermocosmeticos' },
@@ -210,41 +293,58 @@ app.get('/api/categories', (req, res) => {
         { id: 'cat_4', name: 'Higiene', slug: 'higiene' },
         { id: 'cat_5', name: 'Infantil', slug: 'infantil' }
       ];
-      categoriesStore = defaultCategories;
+      for (const cat of defaultCategories) {
+        try {
+          await pool.query(
+            'INSERT INTO categories (id, name, slug) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING',
+            [cat.id, cat.name, cat.slug]
+          );
+        } catch (e) {
+          // ignore duplicate
+        }
+      }
+      categories = await getCategoriesFromDB();
     }
-    res.json(categoriesStore);
+    res.json(categories);
   } catch (error) {
     console.error('Erro ao buscar categorias:', error);
     res.status(500).json({ error: 'Erro ao buscar categorias' });
   }
 });
 
-// Rotas de autenticação
+// ========== Rotas de autenticação ==========
 app.post('/api/auth/login', (req, res) => {
-  // TODO: Implementar autenticação
   res.json({ success: true, user: req.body });
 });
 
-// Salvar dados periodicamente (a cada 30 segundos)
-setInterval(() => {
-  saveProducts(productsStore);
-  saveCategories(categoriesStore);
-}, 30000);
-
-// Salvar ao encerrar
-process.on('SIGTERM', () => {
-  console.log('💾 Salvando dados antes de encerrar...');
-  saveProducts(productsStore);
-  saveCategories(categoriesStore);
+// ========== Encerrar conexão ao fechar ==========
+process.on('SIGTERM', async () => {
+  console.log('🛑 Encerrando servidor...');
+  if (pool) {
+    await pool.end();
+  }
   process.exit(0);
 });
 
-// Iniciar servidor
-app.listen(PORT, () => {
+// ========== Iniciar servidor ==========
+app.listen(PORT, async () => {
+  let dbStatus = 'Nenhum (configure DATABASE_URL)';
+  let productsCount = 0;
+  
+  if (pool) {
+    try {
+      const result = await pool.query('SELECT COUNT(*) as count FROM products');
+      productsCount = parseInt(result.rows[0]?.count || 0, 10);
+      dbStatus = 'PostgreSQL conectado';
+    } catch (e) {
+      dbStatus = `Erro: ${e.message}`;
+      console.error('Erro ao conectar ao banco:', e);
+    }
+  }
+
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
   console.log(`📍 Health check: http://localhost:${PORT}/api/health`);
-  console.log(`🌐 URL pública: https://farmacia-digital-1.onrender.com`);
   console.log(`🔗 Frontend configurado: ${process.env.FRONTEND_URL || 'Nenhum (aceita todas as origens)'}`);
   console.log(`☁️ Cloudinary: ${process.env.CLOUDINARY_CLOUD_NAME || 'Não configurado'}`);
-  console.log(`💾 Persistência: Arquivo JSON (${productsStore.length} produtos carregados)`);
+  console.log(`💾 Persistência: ${dbStatus} (${productsCount} produtos)`);
 });
