@@ -468,6 +468,60 @@ app.get('/api/auth/me', authMiddleware, async (req, res) => {
   }
 });
 
+// ========== Endpoint para criar usuário admin (temporário - remover após criar o primeiro admin) ==========
+app.post('/api/auth/create-admin', async (req, res) => {
+  try {
+    if (!usePostgres) {
+      return res.status(503).json({ error: 'Database not configured. Configure DATABASE_URL.' });
+    }
+    
+    const { email, password, full_name } = req.body;
+    
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email e senha são obrigatórios' });
+    }
+    
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Senha deve ter no mínimo 6 caracteres' });
+    }
+    
+    // Verificar se já existe um admin
+    const existing = await findUserByEmail(email);
+    if (existing) {
+      return res.status(400).json({ error: 'Email já cadastrado' });
+    }
+    
+    // Criar usuário admin
+    const user = await createUser({
+      email,
+      password,
+      full_name: full_name || 'Administrador',
+      role: 'admin',
+      phone: null
+    });
+    
+    const token = createToken(user);
+    
+    console.log(`✅ Usuário admin criado: ${user.email}`);
+    
+    res.status(201).json({
+      success: true,
+      message: 'Usuário admin criado com sucesso',
+      user: {
+        id: user.id,
+        email: user.email,
+        full_name: user.full_name,
+        role: user.role,
+        phone: user.phone
+      },
+      token
+    });
+  } catch (error) {
+    console.error('Erro ao criar admin:', error);
+    res.status(500).json({ error: 'Erro ao criar usuário admin' });
+  }
+});
+
 // ========== Encerrar conexão ao fechar ==========
 process.on('SIGTERM', async () => {
   console.log('🛑 Encerrando servidor...');
