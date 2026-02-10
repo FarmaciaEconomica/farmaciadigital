@@ -75,6 +75,7 @@ import {
 import { toast } from 'sonner';
 import { validateProductForm, validateImage, validateSkuUnique, parseMoney } from '@/utils/validation';
 import { getProductImage } from '@/utils/productImages';
+import { fetchProductByBarcode } from '@/utils/openFoodFacts';
 import { formatCurrency, unformatCurrency, formatBarcode } from '@/utils/formatters';
 
 const defaultCategories = [
@@ -122,6 +123,7 @@ export default function AdminProducts() {
   const [categoriesToAdd, setCategoriesToAdd] = useState([]); // Categorias a serem adicionadas
   const [categoriesToRemove, setCategoriesToRemove] = useState([]); // Categorias a serem removidas
   const [isSavingCategories, setIsSavingCategories] = useState(false);
+  const [fetchingImageByBarcode, setFetchingImageByBarcode] = useState(false);
   const [bulkData, setBulkData] = useState({
     status: 'active',
     category: '',
@@ -644,9 +646,42 @@ export default function AdminProducts() {
       }
       
       toast.success('Imagem enviada com sucesso!');
-    } catch (error) {
-      console.error('Erro ao fazer upload:', error);
-      toast.error('Erro ao fazer upload da imagem. Tente novamente.');
+    } catch (err) {
+      console.error('Erro ao enviar imagem:', err);
+      toast.error('Erro ao fazer upload. Tente novamente.');
+    } finally {
+      e.target.value = '';
+    }
+  };
+
+  const handleFetchImageByBarcode = async () => {
+    const barcode = formData.barcode?.replace(/\D/g, '');
+    if (!barcode || barcode.length < 8) {
+      toast.error('Informe um código de barras válido (8-13 dígitos)');
+      return;
+    }
+    if (formData.requires_prescription) {
+      toast.info('Produtos tarjados usam imagem padrão na loja. A imagem por EAN não será exibida.');
+      return;
+    }
+    setFetchingImageByBarcode(true);
+    try {
+      const result = await fetchProductByBarcode(barcode);
+      if (result) {
+        setFormData(prev => ({
+          ...prev,
+          image_url: result.image_url,
+          images: [result.image_url],
+          ...(result.product_name && !prev.name && { name: result.product_name })
+        }));
+        toast.success(`Imagem encontrada (${result.source}) e aplicada!`);
+      } else {
+        toast.warning('Produto não encontrado no Open Food Facts ou Open Beauty Facts');
+      }
+    } catch {
+      toast.error('Erro ao buscar imagem por código de barras');
+    } finally {
+      setFetchingImageByBarcode(false);
     }
   };
 
@@ -1433,7 +1468,7 @@ export default function AdminProducts() {
                       <img
                         src={getProductImage(product)}
                         alt={product.name}
-                        className="w-10 h-10 rounded-lg object-cover"
+                        className="w-10 h-10 rounded-lg object-contain bg-gray-50"
                         onError={(e) => {
                           if (e.target.src !== getProductImage(product)) {
                             e.target.src = getProductImage(product);
@@ -1792,20 +1827,37 @@ export default function AdminProducts() {
 
               <div>
                 <Label htmlFor="product-barcode">Código de Barras (EAN)</Label>
-                <Input
-                  id="product-barcode"
-                  type="text"
-                  value={formData.barcode}
-                  onChange={(e) => {
-                    const formatted = formatBarcode(e.target.value);
-                    setFormData(prev => ({ ...prev, barcode: formatted }));
-                  }}
-                  placeholder="7891234567890"
-                  maxLength={13}
-                  aria-describedby="barcode-help"
-                />
+                <div className="flex gap-2 mt-1">
+                  <Input
+                    id="product-barcode"
+                    type="text"
+                    value={formData.barcode}
+                    onChange={(e) => {
+                      const formatted = formatBarcode(e.target.value);
+                      setFormData(prev => ({ ...prev, barcode: formatted }));
+                    }}
+                    placeholder="7891234567890"
+                    maxLength={13}
+                    aria-describedby="barcode-help"
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleFetchImageByBarcode}
+                    disabled={fetchingImageByBarcode || !formData.barcode || formData.barcode.replace(/\D/g, '').length < 8}
+                    className="shrink-0"
+                  >
+                    {fetchingImageByBarcode ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      'Buscar imagem'
+                    )}
+                  </Button>
+                </div>
                 <p id="barcode-help" className="text-xs text-gray-500 mt-1">
-                  Código EAN-13 (13 dígitos) - Opcional
+                  Código EAN-13 (13 dígitos) - Opcional. Busca imagem no Open Food Facts e Open Beauty Facts. Produtos tarjados usam imagem padrão.
                 </p>
               </div>
             </div>

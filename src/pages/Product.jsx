@@ -269,7 +269,7 @@ export default function Product() {
             animate={{ opacity: 1, x: 0 }}
             className="relative"
           >
-            <div className="aspect-square bg-white rounded-3xl shadow-sm flex items-center justify-center sticky top-24 relative group">
+            <div className="aspect-square bg-white rounded-3xl shadow-sm flex items-center justify-center sticky top-24 relative group p-6">
               <img
                 src={getProductImage(product)}
                 alt={product.name}

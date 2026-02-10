@@ -50,7 +50,7 @@ export default function ProductCard({ product, onAddToCart, onAddToFavorites, is
       <Link to={createPageUrl('Product') + `?id=${product.id}`}>
         <div className="relative">
           {/* Image */}
-          <div className="aspect-square bg-white flex items-center justify-center relative">
+          <div className="aspect-square bg-white flex items-center justify-center relative p-3">
             {imageError ? (
               <div className="w-full h-full flex items-center justify-center bg-gray-100">
                 <span className="text-4xl">💊</span>
